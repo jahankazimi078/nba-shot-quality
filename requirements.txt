@@ -1,0 +1,11 @@
+nba_api==1.11.4
+pandas==3.0.3
+pyarrow==24.0.0
+numpy==2.4.6
+scikit-learn==1.8.0
+lightgbm==4.6.0
+matplotlib==3.10.9
+streamlit==1.57.0
+requests==2.34.2
+tenacity==9.1.4
+joblib==1.5.3
