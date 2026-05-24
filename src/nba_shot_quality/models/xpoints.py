@@ -109,6 +109,51 @@ def train(season: str) -> TrainResult:
     )
 
 
+def score_oof(season: str) -> Path:
+    """Score every shot in a season out-of-fold (GroupKFold on game_id).
+
+    Each shot is predicted by a model that never saw its game, so the full-season
+    per-shot poe is free of in-sample optimism — this is the leaderboard foundation
+    for the POE aggregation step. Each season is scored independently (self-calibrated), so there is
+    no unseen-category issue across seasons. This NEVER writes the canonical
+    xpoints_model.joblib or holdout_predictions artifacts from train().
+    """
+    features_path = PROCESSED_DIR / f"shots_features_{season}.parquet"
+    if not features_path.exists():
+        raise FileNotFoundError(f"features not found at {features_path} — run features first")
+    df = pd.read_parquet(features_path).reset_index(drop=True)
+    print(f"[score] loaded {len(df):,} rows from {features_path.name}")
+
+    X, y = _xy(df)
+    groups = df["game_id"].to_numpy()
+    p_oof = np.full(len(df), np.nan)
+
+    gkf = GroupKFold(n_splits=N_FOLDS)
+    for fold, (tr_idx, va_idx) in enumerate(gkf.split(X, y, groups=groups), start=1):
+        m = lgb.LGBMClassifier(n_estimators=600, **LGB_PARAMS)
+        m.fit(X.iloc[tr_idx], y[tr_idx], categorical_feature=CATEGORICAL_COLS)
+        p_oof[va_idx] = m.predict_proba(X.iloc[va_idx])[:, 1]
+        print(f"[score] fold {fold}: scored {len(va_idx):,} shots")
+
+    if np.isnan(p_oof).any():
+        raise RuntimeError("[score] some shots were never scored — check GroupKFold coverage")
+
+    df["p_make"] = p_oof
+    df["xpoints"] = p_oof * df["shot_value"]
+    df["poe"] = df["points"] - df["xpoints"]
+
+    oof_logloss = log_loss(y, p_oof, labels=[0, 1])
+    oof_brier = brier_score_loss(y, p_oof)
+    mean_poe = float(df["poe"].mean())
+    print(f"[score] OOF log-loss: {oof_logloss:.4f}  Brier: {oof_brier:.4f}")
+    print(f"[score] mean per-shot poe: {mean_poe:+.5f}  total poe: {df['poe'].sum():+.1f} (expect ~0)")
+
+    out_path = PROCESSED_DIR / f"shots_scored_{season}.parquet"
+    df.to_parquet(out_path, index=False)
+    print(f"[score] scored shots -> {out_path}")
+    return out_path
+
+
 def predict_xpoints(model: lgb.LGBMClassifier, df: pd.DataFrame) -> np.ndarray:
     X, _ = _xy(df, require_target=False)
     p = model.predict_proba(X)[:, 1]

@@ -1,4 +1,4 @@
-"""CLI entrypoint for the Layer 1 pipeline."""
+"""CLI entrypoint for the shot-quality pipeline."""
 
 from __future__ import annotations
 
@@ -22,6 +22,26 @@ def main() -> None:
     p_eval = sub.add_parser("eval", help="evaluate calibration on holdout")
     p_eval.add_argument("--season", required=True)
 
+    p_stats = sub.add_parser("ingest-stats", help="pull league player totals (true shooting) from nba_api")
+    p_stats.add_argument("--season", required=True)
+    p_stats.add_argument("--force", action="store_true", help="re-pull even if cached")
+
+    p_score = sub.add_parser("score", help="out-of-fold xPoints over the full season")
+    p_score.add_argument("--season", required=True)
+
+    p_poe = sub.add_parser("poe", help="aggregate per-player-season POE with bootstrap CIs")
+    p_poe.add_argument("--season", required=True)
+    p_poe.add_argument("--min-attempts", type=int, default=200)
+
+    p_stab = sub.add_parser("stability", help="year-over-year POE correlation")
+    p_stab.add_argument("--season-a", required=True)
+    p_stab.add_argument("--season-b", required=True)
+    p_stab.add_argument("--min-attempts", type=int, default=200)
+
+    p_pvr = sub.add_parser("poe-vs-rts", help="POE vs relative true-shooting scatter")
+    p_pvr.add_argument("--season", required=True)
+    p_pvr.add_argument("--min-attempts", type=int, default=200)
+
     args = parser.parse_args()
     if args.cmd == "ingest":
         from nba_shot_quality.ingest.shotlogs import ingest_season
@@ -39,6 +59,26 @@ def main() -> None:
         from nba_shot_quality.eval.calibration import evaluate
 
         evaluate(args.season)
+    elif args.cmd == "ingest-stats":
+        from nba_shot_quality.ingest.player_stats import ingest_player_stats
+
+        ingest_player_stats(args.season, force=args.force)
+    elif args.cmd == "score":
+        from nba_shot_quality.models.xpoints import score_oof
+
+        score_oof(args.season)
+    elif args.cmd == "poe":
+        from nba_shot_quality.models.poe import aggregate_player_season
+
+        aggregate_player_season(args.season, min_attempts=args.min_attempts)
+    elif args.cmd == "stability":
+        from nba_shot_quality.eval.poe_stability import yoy_stability
+
+        yoy_stability(args.season_a, args.season_b, min_attempts=args.min_attempts)
+    elif args.cmd == "poe-vs-rts":
+        from nba_shot_quality.eval.poe_stability import poe_vs_rts
+
+        poe_vs_rts(args.season, min_attempts=args.min_attempts)
 
 
 if __name__ == "__main__":
