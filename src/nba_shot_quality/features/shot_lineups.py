@@ -23,7 +23,8 @@ PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 ELAPSED_TO_ROTATION_SCALE = 10  # GameRotation times are in tenths of a second of elapsed game time
 REG_PERIOD_SEC = 720
 OT_PERIOD_SEC = 300
-MAX_DROP_RATE = 0.02  # warn loudly above this — signals a wrong time scale or missing rotations
+MAX_DROP_RATE = 0.06  # PBP reconstruction lands ~5% unreconstructable; above this signals a real problem
+                       # (wrong time scale -> ~100% drop, or missing rotation coverage)
 
 
 def _elapsed_tenths(period: np.ndarray, sec_remaining: np.ndarray) -> np.ndarray:

@@ -42,9 +42,11 @@ def main() -> None:
     p_pvr.add_argument("--season", required=True)
     p_pvr.add_argument("--min-attempts", type=int, default=200)
 
-    p_rot = sub.add_parser("ingest-rotations", help="pull per-game player rotations from nba_api")
+    p_rot = sub.add_parser("ingest-rotations", help="build per-game player rotations from nba_api")
     p_rot.add_argument("--season", required=True)
     p_rot.add_argument("--force", action="store_true", help="re-pull even if cached")
+    p_rot.add_argument("--source", choices=["pbp", "gamerotation"], default="pbp",
+                       help="pbp = fast PlayByPlayV3 reconstruction (default); gamerotation = slow exact endpoint")
 
     p_lineups = sub.add_parser("lineups", help="reconstruct on-floor 5v5 per shot")
     p_lineups.add_argument("--season", required=True)
@@ -101,9 +103,14 @@ def main() -> None:
 
         poe_vs_rts(args.season, min_attempts=args.min_attempts)
     elif args.cmd == "ingest-rotations":
-        from nba_shot_quality.ingest.rotations import ingest_rotations
+        if args.source == "pbp":
+            from nba_shot_quality.ingest.pbp_rotations import ingest_pbp_rotations
 
-        ingest_rotations(args.season, force=args.force)
+            ingest_pbp_rotations(args.season, force=args.force)
+        else:
+            from nba_shot_quality.ingest.rotations import ingest_rotations
+
+            ingest_rotations(args.season, force=args.force)
     elif args.cmd == "lineups":
         from nba_shot_quality.features.shot_lineups import build_shot_lineups
 

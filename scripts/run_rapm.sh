@@ -4,7 +4,8 @@ SEASON_NEW="${1:-2024-25}"
 SEASON_PREV="${2:-2023-24}"
 PY="${PY:-.venv/bin/python}"
 
-# Per-game rotations (slow, ~1,230 calls each; resumable via per-game shard cache).
+# Per-game rotations via fast PlayByPlayV3 reconstruction (~0.2s/call, resumable shard cache).
+# Use `--source gamerotation` for the slow exact-times endpoint instead.
 "$PY" -m nba_shot_quality.cli ingest-rotations --season "$SEASON_PREV"
 "$PY" -m nba_shot_quality.cli ingest-rotations --season "$SEASON_NEW"
 
