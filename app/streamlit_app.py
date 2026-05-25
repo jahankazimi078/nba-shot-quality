@@ -16,7 +16,7 @@ import streamlit as st
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = REPO_ROOT / "data" / "processed"
 REPORTS_DIR = REPO_ROOT / "reports"
-SEASONS = ["2024-25", "2023-24"]
+SEASONS = ["2024-25", "2023-24", "2022-23"]
 
 LEADERBOARD_COLS = [
     "player_name", "attempts", "points", "xpoints", "poe", "poe_per_100",
@@ -57,8 +57,12 @@ def load_rapm() -> tuple[pd.DataFrame, str] | None:
     return None
 
 
-RAPM_COLS = ["player_name", "def_rapm", "def_ci_low", "def_ci_high", "off_rapm", "def_shots"]
-RAPM_ROUND = {"def_rapm": 2, "def_ci_low": 2, "def_ci_high": 2, "off_rapm": 2}
+# label -> (value col, ci-low col, ci-high col, shot-volume col used for the min-shots filter)
+RAPM_METRICS = {
+    "Defense (+ = suppresses scoring)": ("def_rapm", "def_ci_low", "def_ci_high", "def_shots"),
+    "Offense (+ = lifts shot quality)": ("off_rapm", "off_ci_low", "off_ci_high", "off_shots"),
+    "Net (offense + defense)": ("net_rapm", "net_ci_low", "net_ci_high", "def_shots"),
+}
 
 
 def draw_court(ax) -> None:
@@ -122,7 +126,7 @@ def main() -> None:
     qualified = board[board["attempts"] >= min_attempts].sort_values("poe_per_100", ascending=False)
 
     tab_map, tab_top, tab_bottom, tab_stability, tab_def = st.tabs(
-        ["Player shot map", "Top 20 POE", "Bottom 20 POE", "Stability", "Defender impact"]
+        ["Player shot map", "Top 20 POE", "Bottom 20 POE", "Stability", "RAPM impact"]
     )
 
     with tab_map:
@@ -178,45 +182,63 @@ def main() -> None:
             st.info(f"Run `poe-vs-rts --season {season}` to generate the comparison plot.")
 
     with tab_def:
-        st.subheader("Defender impact — ridge RAPM")
+        st.subheader("Player impact — ridge RAPM")
         st.caption(
-            "Defensive coefficient on per-shot POE, per 100 defensive shots, signed so + = suppresses "
-            "opponent scoring vs expectation. On-floor attribution (all 5 defenders share credit, not "
-            "closest-defender) and FGA-only (excludes free throws, turnovers, non-shot defense)."
+            "Coefficient on per-shot POE, per 100 shots. Defense + = suppresses opponent scoring; "
+            "offense + = lifts shot quality; net = offense + defense. On-floor attribution (credit "
+            "shared by all 5) and FGA-only — shot impact, not total value. Offense validates at "
+            "r≈0.73 vs the independent POE metric; defense is noisier (within-season reliability ~0.2)."
         )
         loaded = load_rapm()
         if loaded is None:
-            st.info("Run `bash scripts/run_rapm.sh` to generate defender-impact ratings.")
+            st.info("Run `bash scripts/run_rapm.sh` to generate RAPM ratings.")
         else:
             rapm, source = loaded
-            max_def = int(rapm["def_shots"].max()) if len(rapm) else 0
+            # Back-compat for older parquet schemas without off/net CIs.
+            if "net_rapm" not in rapm.columns:
+                rapm = rapm.assign(net_rapm=rapm["off_rapm"] + rapm["def_rapm"])
+            for c in ("off_ci_low", "off_ci_high", "net_ci_low", "net_ci_high"):
+                if c not in rapm.columns:
+                    rapm[c] = float("nan")
             if source != "pooled":
-                st.warning(
-                    f"⚠️ Limited data — single-season partial sample (`{source}`, max "
-                    f"{max_def:,} defensive shots/player). This is a mechanics preview; the "
-                    "rankings are **not yet meaningful**. Run the full two-season pull for real ratings."
-                )
-            # Adapt the threshold to the available sample so the table isn't empty on partial data.
-            slider_max = max(500, max_def)
+                st.warning(f"⚠️ Limited data — single-season partial sample (`{source}`); rankings may not be meaningful.")
+
+            metric_label = st.radio("Metric", list(RAPM_METRICS), horizontal=True)
+            val_col, lo_col, hi_col, shots_col = RAPM_METRICS[metric_label]
+            max_shots = int(rapm[shots_col].max()) if len(rapm) else 0
+            slider_max = max(500, max_shots)
             step = 250 if slider_max > 1500 else 25
-            default = ((min(1500, max_def // 2)) // step) * step
-            min_def = st.slider("Min defensive shots", 0, slider_max, default, step=step)
-            ranked = rapm[rapm["def_shots"] >= min_def].sort_values("def_rapm", ascending=False)
-            c_top, c_bot = st.columns(2)
-            with c_top:
-                st.markdown(f"**Top 15 defenders** (n={len(ranked)})")
-                st.dataframe(ranked.head(15)[RAPM_COLS].round(RAPM_ROUND), hide_index=True, use_container_width=True)
-            with c_bot:
-                st.markdown("**Bottom 15 defenders**")
-                st.dataframe(ranked.tail(15).iloc[::-1][RAPM_COLS].round(RAPM_ROUND), hide_index=True, use_container_width=True)
-            stab = sorted(REPORTS_DIR.glob("rapm_stability_*.png"))
-            face = sorted(REPORTS_DIR.glob("rapm_face_validity_*.png"))
-            if stab:
-                st.markdown("**Year-over-year RAPM stability**")
-                st.image(str(stab[-1]), use_container_width=True)
-            if face:
-                st.markdown("**Face validity vs tracking defended-FG metric**")
-                st.image(str(face[-1]), use_container_width=True)
+            default = ((min(1500, max_shots // 2)) // step) * step
+            ctrl1, ctrl2 = st.columns(2)
+            with ctrl1:
+                min_shots = st.slider(f"Min {shots_col.replace('_', ' ')}", 0, slider_max, default, step=step)
+            with ctrl2:
+                query = st.text_input("Search player name", "")
+            show_cols = ["player_name", val_col, lo_col, hi_col, shots_col]
+            ranked = rapm[rapm[shots_col] >= min_shots].sort_values(val_col, ascending=False)
+            if query:
+                hits = ranked[ranked["player_name"].str.contains(query, case=False, na=False)]
+                st.markdown(f"**Search '{query}'** — {len(hits)} match")
+                st.dataframe(hits[show_cols].round(2), hide_index=True, use_container_width=True)
+            else:
+                c_top, c_bot = st.columns(2)
+                with c_top:
+                    st.markdown(f"**Top 15** (n={len(ranked)})")
+                    st.dataframe(ranked.head(15)[show_cols].round(2), hide_index=True, use_container_width=True)
+                with c_bot:
+                    st.markdown("**Bottom 15**")
+                    st.dataframe(ranked.tail(15).iloc[::-1][show_cols].round(2), hide_index=True, use_container_width=True)
+
+            for pat, title in [
+                ("rapm_stability_*.png", "Year-over-year stability — defense vs offense"),
+                ("rapm_off_vs_poe_*.png", "Offensive RAPM vs independent POE/100 (cross-pipeline)"),
+                ("rapm_splithalf_*.png", "Within-season split-half reliability"),
+                ("rapm_face_validity_*.png", "Face validity vs tracking defended-FG"),
+            ]:
+                imgs = sorted(REPORTS_DIR.glob(pat))
+                if imgs:
+                    st.markdown(f"**{title}**")
+                    st.image(str(imgs[-1]), use_container_width=True)
 
 
 if __name__ == "__main__":

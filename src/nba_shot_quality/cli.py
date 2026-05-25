@@ -120,10 +120,19 @@ def main() -> None:
 
         fit_rapm(args.seasons, n_boot=args.n_boot)
     elif args.cmd == "rapm-eval":
-        from nba_shot_quality.eval.rapm_eval import rapm_face_validity, yoy_rapm_stability
+        from nba_shot_quality.eval.rapm_eval import (
+            ptdefend_yoy,
+            rapm_face_validity,
+            rapm_off_vs_poe,
+            splithalf_reliability,
+            yoy_rapm_stability,
+        )
 
         yoy_rapm_stability(args.season_a, args.season_b, min_def_shots=args.min_def_shots)
         rapm_face_validity(args.season, min_def_shots=args.min_def_shots)
+        rapm_off_vs_poe(args.season, min_shots=args.min_def_shots)
+        ptdefend_yoy(args.season_a, args.season_b)
+        splithalf_reliability(args.season, min_def_shots=args.min_def_shots)
     elif args.cmd == "ingest-def":
         from nba_shot_quality.ingest.player_stats import ingest_pt_defend
 

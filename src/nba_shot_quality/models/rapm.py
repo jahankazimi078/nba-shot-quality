@@ -33,7 +33,10 @@ SOLVER = "sparse_cg"
 
 OUTPUT_COLS = [
     "player_id", "player_name", "season",
-    "def_rapm", "def_ci_low", "def_ci_high", "off_rapm", "def_shots", "off_shots",
+    "def_rapm", "def_ci_low", "def_ci_high",
+    "off_rapm", "off_ci_low", "off_ci_high",
+    "net_rapm", "net_ci_low", "net_ci_high",
+    "def_shots", "off_shots",
 ]
 
 
@@ -56,46 +59,20 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
             raise FileNotFoundError(f"{path} not found — run lineups --season {s} first")
         frames.append(pd.read_parquet(path))
     long = pd.concat(frames, ignore_index=True)
-    long["shot_key"] = long["season"] + ":" + long["shot_uid"].astype(str)  # unique across seasons
     print(f"[rapm] {len(long):,} on-floor rows from seasons {seasons}")
 
-    # Column map: each player -> (offense col 2i, defense col 2i+1)
-    players = np.sort(long["person_id"].unique())
-    col_of = {pid: i for i, pid in enumerate(players)}
-    n_cols = 2 * len(players)
-
-    # Row map: one matrix row per shot
-    row_codes, shot_keys = pd.factorize(long["shot_key"], sort=False)
-    n_rows = len(shot_keys)
-    cols = long["person_id"].map(col_of).to_numpy() * 2 + long["side"].to_numpy()
-    X = sparse.coo_matrix(
-        (np.ones(len(long), dtype=np.float64), (row_codes, cols)), shape=(n_rows, n_cols)
-    ).tocsr()
-
-    shot_tbl = long.drop_duplicates("shot_key").set_index("shot_key")
-    y = shot_tbl.loc[shot_keys, "poe"].to_numpy()
-    groups = shot_tbl.loc[shot_keys, "game_id"].to_numpy()
-
-    assert X.shape == (n_rows, n_cols), "matrix shape mismatch"
-    nnz_per_row = np.diff(X.indptr)
-    assert (nnz_per_row == 10).all(), f"expected 10 nonzeros/row, got {np.unique(nnz_per_row)}"
-    print(f"[rapm] design matrix {n_rows:,} shots × {n_cols:,} cols ({len(players):,} players), 10 nnz/row")
+    X, y, groups, players = _build_design(long)
+    print(f"[rapm] design matrix {X.shape[0]:,} shots × {X.shape[1]:,} cols ({len(players):,} players), 10 nnz/row")
 
     best_alpha = _select_alpha(X, y, groups, alpha_grid)
-
-    model = Ridge(alpha=best_alpha, solver=SOLVER, fit_intercept=True)
-    model.fit(X, y)
-    coef = model.coef_
-    off_rapm = coef[0::2] * 100.0
-    def_rapm = -coef[1::2] * 100.0  # sign-flip: + = good defense
+    off_rapm, def_rapm = _fit_sides(X, y, best_alpha)
 
     side_counts = long.groupby(["person_id", "side"]).size().unstack(fill_value=0)
     off_shots = side_counts.get(0, pd.Series(0, index=side_counts.index)).reindex(players, fill_value=0)
     def_shots = side_counts.get(1, pd.Series(0, index=side_counts.index)).reindex(players, fill_value=0)
 
-    def_boot = _bootstrap(X, y, groups, best_alpha, n_boot, n_players=len(players))
-    ci_low = np.nanpercentile(def_boot, 2.5, axis=0)
-    ci_high = np.nanpercentile(def_boot, 97.5, axis=0)
+    # Game-level bootstrap CIs for all three views (offense, defense, net = off + def).
+    off_b, def_b, net_b = _bootstrap(X, y, groups, best_alpha, n_boot, n_players=len(players))
 
     names = _name_map(seasons)
     pooled = len(seasons) > 1
@@ -105,9 +82,14 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
             "player_name": [names.get(int(p), str(p)) for p in players],
             "season": "pooled" if pooled else seasons[0],
             "def_rapm": def_rapm,
-            "def_ci_low": ci_low,
-            "def_ci_high": ci_high,
+            "def_ci_low": np.nanpercentile(def_b, 2.5, axis=0),
+            "def_ci_high": np.nanpercentile(def_b, 97.5, axis=0),
             "off_rapm": off_rapm,
+            "off_ci_low": np.nanpercentile(off_b, 2.5, axis=0),
+            "off_ci_high": np.nanpercentile(off_b, 97.5, axis=0),
+            "net_rapm": off_rapm + def_rapm,
+            "net_ci_low": np.nanpercentile(net_b, 2.5, axis=0),
+            "net_ci_high": np.nanpercentile(net_b, 97.5, axis=0),
             "def_shots": def_shots.to_numpy().astype("int64"),
             "off_shots": off_shots.to_numpy().astype("int64"),
         }
@@ -124,6 +106,43 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
         print(f"  - {r['player_name']:<24} {r['def_rapm']:+6.2f} [{r['def_ci_low']:+.2f}, {r['def_ci_high']:+.2f}]  ({int(r['def_shots'])} def shots)")
     print(f"[rapm] -> {out_path}")
     return out_path
+
+
+def _build_design(long: pd.DataFrame):
+    """Build the sparse off+def design from a long shot_lineups frame.
+
+    Returns (X_csr, y, groups, players): X has 2 columns per player (offense col 2i, defense col
+    2i+1) and exactly 10 nonzeros per shot row; y is per-shot POE; groups is per-shot game_id.
+    Reusable so diagnostics can fit on game subsets without duplicating this logic.
+    """
+    long = long.copy()
+    long["shot_key"] = long["season"] + ":" + long["shot_uid"].astype(str)  # unique across seasons
+    players = np.sort(long["person_id"].unique())
+    col_of = {pid: i for i, pid in enumerate(players)}
+    n_cols = 2 * len(players)
+
+    row_codes, shot_keys = pd.factorize(long["shot_key"], sort=False)
+    n_rows = len(shot_keys)
+    cols = long["person_id"].map(col_of).to_numpy() * 2 + long["side"].to_numpy()
+    X = sparse.coo_matrix(
+        (np.ones(len(long), dtype=np.float64), (row_codes, cols)), shape=(n_rows, n_cols)
+    ).tocsr()
+
+    shot_tbl = long.drop_duplicates("shot_key").set_index("shot_key")
+    y = shot_tbl.loc[shot_keys, "poe"].to_numpy()
+    groups = shot_tbl.loc[shot_keys, "game_id"].to_numpy()
+
+    assert X.shape == (n_rows, n_cols), "matrix shape mismatch"
+    nnz_per_row = np.diff(X.indptr)
+    assert (nnz_per_row == 10).all(), f"expected 10 nonzeros/row, got {np.unique(nnz_per_row)}"
+    return X, y, groups, players
+
+
+def _fit_sides(X, y, alpha):
+    """Ridge fit -> (off_rapm, def_rapm) per-100 arrays; defense sign-flipped so + = good defense."""
+    m = Ridge(alpha=alpha, solver=SOLVER, fit_intercept=True)
+    m.fit(X, y)
+    return m.coef_[0::2] * 100.0, -m.coef_[1::2] * 100.0
 
 
 def _select_alpha(X, y, groups, alpha_grid) -> float:
@@ -146,17 +165,21 @@ def _select_alpha(X, y, groups, alpha_grid) -> float:
     return float(best_alpha)
 
 
-def _bootstrap(X, y, groups, alpha, n_boot, n_players) -> np.ndarray:
+def _bootstrap(X, y, groups, alpha, n_boot, n_players):
+    """Game-level bootstrap; returns (off_b, def_b, net_b), each (n_boot, n_players) per-100.
+
+    The defense draws are identical to the previous def-only bootstrap (same seed/resample order),
+    so existing def CIs are unchanged; offense and net = off + def are collected alongside.
+    """
     rng = np.random.default_rng(0)
     unique_games = np.unique(groups)
     rows_by_game = {g: np.flatnonzero(groups == g) for g in unique_games}
-    out = np.full((n_boot, n_players), np.nan)
+    off_b = np.full((n_boot, n_players), np.nan)
+    def_b = np.full((n_boot, n_players), np.nan)
     for b in range(n_boot):
         sampled = rng.choice(unique_games, size=len(unique_games), replace=True)
         sel = np.concatenate([rows_by_game[g] for g in sampled])
-        m = Ridge(alpha=alpha, solver=SOLVER, fit_intercept=True)
-        m.fit(X[sel], y[sel])
-        out[b] = -m.coef_[1::2] * 100.0
+        off_b[b], def_b[b] = _fit_sides(X[sel], y[sel], alpha)
         if (b + 1) % 50 == 0:
             print(f"[rapm]   bootstrap {b+1}/{n_boot}", flush=True)
-    return out
+    return off_b, def_b, off_b + def_b
