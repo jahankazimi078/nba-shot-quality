@@ -48,7 +48,7 @@ def build_shot_lineups(season: str) -> Path:
     if not rot_path.exists():
         raise FileNotFoundError(f"{rot_path} not found — run ingest-rotations --season {season} first")
 
-    shots = pd.read_parquet(scored_path, columns=["game_id", "team_id", "period", "seconds_remaining_period", "poe"])
+    shots = pd.read_parquet(scored_path, columns=["game_id", "team_id", "player_id", "period", "seconds_remaining_period", "poe"])
     shots["game_id"] = shots["game_id"].astype(str)
     shots = shots.reset_index(drop=True)
     shots["shot_uid"] = np.arange(len(shots), dtype="int64")
@@ -60,7 +60,7 @@ def build_shot_lineups(season: str) -> Path:
     print(f"[shot_lineups] {len(shots):,} shots, {rot['game_id'].nunique():,} games with rotations")
 
     rot_by_game = {gid: g for gid, g in rot.groupby("game_id")}
-    uid_parts, poe_parts, person_parts, side_parts, gid_parts = [], [], [], [], []
+    uid_parts, poe_parts, person_parts, side_parts, gid_parts, shooter_parts = [], [], [], [], [], []
     n_off_all, n_def_all = [], []
 
     for gid, g_shots in shots.groupby("game_id"):
@@ -69,6 +69,7 @@ def build_shot_lineups(season: str) -> Path:
         sh_team = g_shots["team_id"].to_numpy()
         sh_uid = g_shots["shot_uid"].to_numpy()
         sh_poe = g_shots["poe"].to_numpy()
+        sh_shooter = g_shots["player_id"].to_numpy()
 
         if g_rot is None or len(g_rot) == 0:
             n_off_all.append(np.zeros(len(g_shots), dtype=int))
@@ -94,10 +95,12 @@ def build_shot_lineups(season: str) -> Path:
         kept_uid = sh_uid[keep]
         kept_team = sh_team[keep]
         kept_poe = sh_poe[keep]
+        kept_shooter = sh_shooter[keep]
         uid_parts.append(kept_uid[rows])
         poe_parts.append(kept_poe[rows])
         gid_parts.append(np.full(len(rows), gid))
         person_parts.append(s_person[cols])
+        shooter_parts.append(kept_shooter[rows])
         # side: 0 = offense (stint team == shooter's team), 1 = defense
         side_parts.append((s_team[cols] != kept_team[rows]).astype("int8"))
 
@@ -122,6 +125,7 @@ def build_shot_lineups(season: str) -> Path:
             "poe": np.concatenate(poe_parts),
             "person_id": np.concatenate(person_parts).astype("int64"),
             "side": np.concatenate(side_parts),
+            "shooter_id": np.concatenate(shooter_parts).astype("int64"),
         }
     )
     out_path = PROCESSED_DIR / f"shot_lineups_{season}.parquet"

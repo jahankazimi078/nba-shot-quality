@@ -50,8 +50,14 @@ def _name_map(seasons: list[str]) -> dict[int, str]:
     return names
 
 
-def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = ALPHA_GRID) -> Path:
-    """Fit pooled (or single-season) defender RAPM with game-level bootstrap CIs."""
+def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = ALPHA_GRID,
+             weighting: str = "uniform", lam: float = 1.0) -> Path:
+    """Fit pooled (or single-season) defender RAPM with game-level bootstrap CIs.
+
+    weighting="uniform" splits each shot's defensive credit equally across the 5 on-floor defenders;
+    "matchup" weights it by who guarded the shooter (see apply_weighting). Matchup runs write a
+    separate `_matchup`-suffixed parquet so the uniform ratings are untouched.
+    """
     frames = []
     for s in seasons:
         path = PROCESSED_DIR / f"shot_lineups_{s}.parquet"
@@ -59,7 +65,9 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
             raise FileNotFoundError(f"{path} not found — run lineups --season {s} first")
         frames.append(pd.read_parquet(path))
     long = pd.concat(frames, ignore_index=True)
-    print(f"[rapm] {len(long):,} on-floor rows from seasons {seasons}")
+    print(f"[rapm] {len(long):,} on-floor rows from seasons {seasons}  weighting={weighting} lam={lam}")
+    if weighting == "matchup":
+        long["weight"] = apply_weighting(long, lam, _load_matchups(seasons))
 
     X, y, groups, players = _build_design(long)
     print(f"[rapm] design matrix {X.shape[0]:,} shots × {X.shape[1]:,} cols ({len(players):,} players), 10 nnz/row")
@@ -95,7 +103,9 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
         }
     )[OUTPUT_COLS].sort_values("def_rapm", ascending=False).reset_index(drop=True)
 
-    out_path = PROCESSED_DIR / ("rapm_pooled.parquet" if pooled else f"rapm_{seasons[0]}.parquet")
+    suffix = "_matchup" if weighting == "matchup" else ""
+    stem = "rapm_pooled" if pooled else f"rapm_{seasons[0]}"
+    out_path = PROCESSED_DIR / f"{stem}{suffix}.parquet"
     out.to_parquet(out_path, index=False)
 
     shown = out[out["def_shots"] >= 1500]
@@ -106,6 +116,45 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
         print(f"  - {r['player_name']:<24} {r['def_rapm']:+6.2f} [{r['def_ci_low']:+.2f}, {r['def_ci_high']:+.2f}]  ({int(r['def_shots'])} def shots)")
     print(f"[rapm] -> {out_path}")
     return out_path
+
+
+def _load_matchups(seasons: list[str]) -> dict[str, pd.DataFrame]:
+    out = {}
+    for s in seasons:
+        p = RAW_DIR / f"matchups_{s}.parquet"
+        if not p.exists():
+            raise FileNotFoundError(f"{p} not found — run ingest-matchups --season {s} first")
+        out[s] = pd.read_parquet(p)
+    return out
+
+
+def apply_weighting(long: pd.DataFrame, lam: float, matchups: dict[str, pd.DataFrame]) -> np.ndarray:
+    """Per-row design weight: offense rows -> 1.0; defense rows -> 5 * blended matchup share.
+
+    For each shot, a defender's share is its season partial-possessions guarding that shot's shooter,
+    normalized over the shot's 5 on-floor defenders (uniform 1/5 fallback when no matchup data exists).
+    w_d = 5 * [(1-lam)*(1/5) + lam*share5_d], so the total defensive mass per shot stays 5 — making
+    uniform attribution the exact lam=0 special case and leaving the offense/defense scale unchanged.
+    """
+    if "shooter_id" not in long.columns:
+        raise KeyError("shot_lineups lacks shooter_id — re-run `lineups` to add it")
+    w = np.ones(len(long), dtype=np.float64)
+    defmask = long["side"].to_numpy() == 1
+    dd = long.loc[defmask, ["season", "shot_uid", "shooter_id", "person_id"]].reset_index()
+    mu = pd.concat(
+        [m[["off_player_id", "def_player_id", "partial_poss"]].assign(season=s) for s, m in matchups.items()],
+        ignore_index=True,
+    )
+    dd = dd.merge(mu, how="left", left_on=["season", "shooter_id", "person_id"],
+                  right_on=["season", "off_player_id", "def_player_id"])
+    dd["pp"] = dd["partial_poss"].fillna(0.0)
+    dd["sk"] = dd["season"] + ":" + dd["shot_uid"].astype(str)
+    tot = dd.groupby("sk")["pp"].transform("sum").to_numpy()
+    share5 = np.full(len(tot), 0.2)  # uniform fallback when a shot has no matchup data
+    nz = tot > 0
+    share5[nz] = dd["pp"].to_numpy()[nz] / tot[nz]
+    w[dd["index"].to_numpy()] = 5.0 * ((1.0 - lam) * 0.2 + lam * share5)
+    return w
 
 
 def _build_design(long: pd.DataFrame):
@@ -124,9 +173,8 @@ def _build_design(long: pd.DataFrame):
     row_codes, shot_keys = pd.factorize(long["shot_key"], sort=False)
     n_rows = len(shot_keys)
     cols = long["person_id"].map(col_of).to_numpy() * 2 + long["side"].to_numpy()
-    X = sparse.coo_matrix(
-        (np.ones(len(long), dtype=np.float64), (row_codes, cols)), shape=(n_rows, n_cols)
-    ).tocsr()
+    data = long["weight"].to_numpy(dtype=np.float64) if "weight" in long.columns else np.ones(len(long))
+    X = sparse.coo_matrix((data, (row_codes, cols)), shape=(n_rows, n_cols)).tocsr()
 
     shot_tbl = long.drop_duplicates("shot_key").set_index("shot_key")
     y = shot_tbl.loc[shot_keys, "poe"].to_numpy()

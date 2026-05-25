@@ -174,18 +174,26 @@ def rapm_off_vs_poe(season: str, min_shots: int = 1500) -> Path | None:
     return out_path
 
 
-def splithalf_reliability(season: str, min_def_shots: int = 1500) -> Path:
+def _sb(r: float) -> float:  # Spearman-Brown: half-length r -> full-length reliability
+    return 2 * r / (1 + r) if np.isfinite(r) else float("nan")
+
+
+def splithalf_reliability(season: str, min_def_shots: int = 1500,
+                          weighting: str = "uniform", lam: float = 1.0) -> dict:
     """Within-season split-half reliability — the measurement-noise ceiling (no roster change).
 
     Splits the season's games into two random halves, fits RAPM on each at a shared alpha, and
     correlates per-player coefficients across halves. Spearman-Brown adjusts the half-length
-    correlation up to the full-season reliability. This isolates pure noise from real year-to-year
-    change, complementing the YoY stability check.
+    correlation up to the full-season reliability. With weighting="matchup" the defensive design is
+    matchup-weighted, so this directly measures whether matchup attribution lifts the ceiling.
+    Returns {def_r, def_sb, off_r, off_sb, n}.
     """
     from nba_shot_quality.models import rapm as R
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     long = pd.read_parquet(PROCESSED_DIR / f"shot_lineups_{season}.parquet")
+    if weighting == "matchup":
+        long["weight"] = R.apply_weighting(long, lam, R._load_matchups([season]))
     games = np.sort(long["game_id"].unique())
     perm = np.random.default_rng(0).permutation(len(games))
     half_a = set(games[perm[: len(games) // 2]])
@@ -205,15 +213,13 @@ def splithalf_reliability(season: str, min_def_shots: int = 1500) -> Path:
     m = fa.merge(fb, on="player_id", suffixes=("_a", "_b"))
     m = m[(m["def_shots_a"] >= min_def_shots // 2) & (m["def_shots_b"] >= min_def_shots // 2)]
 
-    def sb(r: float) -> float:  # Spearman-Brown: half-length r -> full-length reliability
-        return 2 * r / (1 + r) if np.isfinite(r) else float("nan")
-
     r_def = _pearson(m["deff_a"].to_numpy(), m["deff_b"].to_numpy())
     r_off = _pearson(m["off_a"].to_numpy(), m["off_b"].to_numpy())
-    print(f"[rapm_eval] split-half reliability {season} (alpha={alpha:.0f}, n={len(m):,}):")
-    print(f"  DEF  half-half r={r_def:.3f}  ->  full-season reliability (Spearman-Brown) {sb(r_def):.3f}")
-    print(f"  OFF  half-half r={r_off:.3f}  ->  full-season reliability (Spearman-Brown) {sb(r_off):.3f}")
+    print(f"[rapm_eval] split-half reliability {season} [{weighting}] (alpha={alpha:.0f}, n={len(m):,}):")
+    print(f"  DEF  half-half r={r_def:.3f}  ->  full-season reliability (Spearman-Brown) {_sb(r_def):.3f}")
+    print(f"  OFF  half-half r={r_off:.3f}  ->  full-season reliability (Spearman-Brown) {_sb(r_off):.3f}")
 
+    suffix = "_matchup" if weighting == "matchup" else ""
     fig, ax = plt.subplots(figsize=(7.5, 7))
     ax.scatter(m["deff_a"], m["deff_b"], s=20, alpha=0.6, edgecolor="black", linewidths=0.2, label="defense")
     ax.scatter(m["off_a"], m["off_b"], s=20, alpha=0.4, edgecolor="black", linewidths=0.2, label="offense", color="orange")
@@ -221,11 +227,84 @@ def splithalf_reliability(season: str, min_def_shots: int = 1500) -> Path:
     ax.axvline(0, color="grey", lw=0.8)
     ax.set_xlabel("RAPM — random half A")
     ax.set_ylabel("RAPM — random half B")
-    ax.set_title(f"Split-half reliability — {season}\nDEF r={r_def:.3f} (SB {sb(r_def):.3f})  OFF r={r_off:.3f} (SB {sb(r_off):.3f})")
+    ax.set_title(f"Split-half reliability — {season} [{weighting}]\n"
+                 f"DEF r={r_def:.3f} (SB {_sb(r_def):.3f})  OFF r={r_off:.3f} (SB {_sb(r_off):.3f})")
     ax.legend()
     ax.grid(alpha=0.3)
     fig.tight_layout()
-    out_path = REPORTS_DIR / f"rapm_splithalf_{season}.png"
+    out_path = REPORTS_DIR / f"rapm_splithalf_{season}{suffix}.png"
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)
+    print(f"[rapm_eval] -> {out_path}")
+    return {"def_r": r_def, "def_sb": _sb(r_def), "off_r": r_off, "off_sb": _sb(r_off), "n": len(m)}
+
+
+def _yoy_def_r(season_a: str, season_b: str, suffix: str, min_def_shots: int) -> float:
+    """Pearson r of def_rapm across two seasons for a given weighting suffix ('' or '_matchup')."""
+    pa = PROCESSED_DIR / f"rapm_{season_a}{suffix}.parquet"
+    pb = PROCESSED_DIR / f"rapm_{season_b}{suffix}.parquet"
+    if not (pa.exists() and pb.exists()):
+        return float("nan")
+    a, b = pd.read_parquet(pa), pd.read_parquet(pb)
+    m = a.merge(b, on="player_id", suffixes=("_a", "_b"))
+    m = m[(m["def_shots_a"] >= min_def_shots) & (m["def_shots_b"] >= min_def_shots)]
+    return _pearson(m["def_rapm_a"].to_numpy(), m["def_rapm_b"].to_numpy()) if len(m) > 2 else float("nan")
+
+
+def _facevalidity_r(season: str, suffix: str, min_def_shots: int) -> float:
+    """Pearson r of def_rapm vs PtDefend suppression for a given weighting suffix."""
+    rp = PROCESSED_DIR / f"rapm_{season}{suffix}.parquet"
+    pt = RAW_DIR / f"pt_defend_{season}.parquet"
+    if not (rp.exists() and pt.exists()):
+        return float("nan")
+    r = pd.read_parquet(rp)
+    r = r[r["def_shots"] >= min_def_shots]
+    p = pd.read_parquet(pt)
+    p["sup"] = -p["pct_plusminus"]
+    m = r.merge(p[["player_id", "sup"]], on="player_id").dropna(subset=["sup"])
+    return _pearson(m["def_rapm"].to_numpy(), m["sup"].to_numpy()) if len(m) > 2 else float("nan")
+
+
+def weighting_compare(season_a: str, season_b: str, min_def_shots: int = 1500, lam: float = 1.0) -> Path:
+    """Decision table: does matchup-weighting beat uniform on defensive reliability/stability?
+
+    Runs split-half reliability under both weightings for each season, plus YoY def_rapm correlation
+    and PtDefend face validity from the (separately fit) per-season parquets. Writes a grouped bar
+    chart so the comparison is read at a glance.
+    """
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    rel = {w: {s: splithalf_reliability(s, min_def_shots, weighting=w, lam=lam)
+               for s in (season_a, season_b)} for w in ("uniform", "matchup")}
+    yoy = {w: _yoy_def_r(season_a, season_b, "_matchup" if w == "matchup" else "", min_def_shots)
+           for w in ("uniform", "matchup")}
+    face = {w: _facevalidity_r(season_b, "_matchup" if w == "matchup" else "", min_def_shots)
+            for w in ("uniform", "matchup")}
+
+    print("\n[rapm_eval] ===== WEIGHTING COMPARISON (defense) =====")
+    print(f"  {'metric':<34}{'uniform':>10}{'matchup':>10}")
+    for s in (season_a, season_b):
+        print(f"  {'split-half reliability '+s:<34}{rel['uniform'][s]['def_sb']:>10.3f}{rel['matchup'][s]['def_sb']:>10.3f}")
+    print(f"  {'YoY def_rapm '+season_a+'->'+season_b:<34}{yoy['uniform']:>10.3f}{yoy['matchup']:>10.3f}")
+    print(f"  {'face validity vs PtDefend '+season_b:<34}{face['uniform']:>10.3f}{face['matchup']:>10.3f}")
+
+    labels = [f"reliab\n{season_a}", f"reliab\n{season_b}", f"YoY\n{season_a[-5:]}->{season_b[-5:]}", f"face\n{season_b}"]
+    uni = [rel["uniform"][season_a]["def_sb"], rel["uniform"][season_b]["def_sb"], yoy["uniform"], face["uniform"]]
+    mat = [rel["matchup"][season_a]["def_sb"], rel["matchup"][season_b]["def_sb"], yoy["matchup"], face["matchup"]]
+    x = np.arange(len(labels))
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    ax.bar(x - 0.2, uni, 0.4, label="uniform", color="steelblue")
+    ax.bar(x + 0.2, mat, 0.4, label="matchup", color="darkorange")
+    for i, (u, mv) in enumerate(zip(uni, mat)):
+        ax.text(i - 0.2, u, f"{u:.2f}", ha="center", va="bottom", fontsize=8)
+        ax.text(i + 0.2, mv, f"{mv:.2f}", ha="center", va="bottom", fontsize=8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Pearson r (defense)")
+    ax.set_title(f"Defensive RAPM: uniform vs matchup-weighted (lam={lam})")
+    ax.legend()
+    ax.grid(alpha=0.3, axis="y")
+    fig.tight_layout()
+    out_path = REPORTS_DIR / "rapm_weighting_compare.png"
     fig.savefig(out_path, dpi=120)
     plt.close(fig)
     print(f"[rapm_eval] -> {out_path}")
