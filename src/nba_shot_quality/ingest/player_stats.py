@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 import pandas as pd
-from nba_api.stats.endpoints import leaguedashplayerstats
+from nba_api.stats.endpoints import leaguedashplayerstats, leaguedashptdefend
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -73,4 +73,49 @@ def ingest_player_stats(season: str, force: bool = False) -> Path:
     df.to_parquet(out_path, index=False)
     print(f"[player_stats] league-average TS%: {league_ts:.4f}")
     print(f"[player_stats] -> {out_path}")
+    return out_path
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=2, max=60),
+    reraise=True,
+)
+def _fetch_pt_defend(season: str) -> pd.DataFrame:
+    resp = leaguedashptdefend.LeagueDashPtDefend(
+        season=season,
+        season_type_all_star="Regular Season",
+        defense_category="Overall",
+        per_mode_simple="Totals",
+        timeout=REQUEST_TIMEOUT_SEC,
+    )
+    return resp.get_data_frames()[0]
+
+
+def ingest_pt_defend(season: str, force: bool = False) -> Path:
+    """Pull tracking defended-FG stats (opponent FG vs expected) for face-validity comparison."""
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = RAW_DIR / f"pt_defend_{season}.parquet"
+    if out_path.exists() and not force:
+        print(f"[pt_defend] cache hit: {out_path}")
+        return out_path
+
+    print(f"[pt_defend] pulling tracking defended-FG stats for season {season}")
+    raw = _fetch_pt_defend(season)
+    time.sleep(REQUEST_SLEEP_SEC)
+    print(f"[pt_defend] received {len(raw):,} rows, columns: {list(raw.columns)}")
+
+    # Player-id column is CLOSE_DEF_PERSON_ID; PCT_PLUSMINUS = opponent FG% defended minus normal.
+    id_col = "CLOSE_DEF_PERSON_ID" if "CLOSE_DEF_PERSON_ID" in raw.columns else "PLAYER_ID"
+    required = {id_col, "PLAYER_NAME", "PCT_PLUSMINUS", "D_FGA"}
+    missing = required - set(raw.columns)
+    if missing:
+        raise KeyError(f"[pt_defend] expected columns missing from API response: {sorted(missing)}")
+
+    df = raw[[id_col, "PLAYER_NAME", "D_FGA", "PCT_PLUSMINUS"]].copy()
+    df = df.rename(columns={id_col: "player_id", "PLAYER_NAME": "player_name",
+                            "D_FGA": "d_fga", "PCT_PLUSMINUS": "pct_plusminus"})
+    df["player_id"] = df["player_id"].astype("int64")
+    df.to_parquet(out_path, index=False)
+    print(f"[pt_defend] -> {out_path}")
     return out_path

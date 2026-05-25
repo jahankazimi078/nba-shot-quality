@@ -40,6 +40,27 @@ def load_leaderboard(season: str) -> pd.DataFrame | None:
     return pd.read_parquet(path) if path.exists() else None
 
 
+@st.cache_data(show_spinner=False)
+def load_rapm() -> tuple[pd.DataFrame, str] | None:
+    """Best available RAPM table: prefer pooled, else fall back to the newest per-season file.
+
+    Returns (table, source) where source is "pooled" or a season tag; None if nothing exists.
+    """
+    pooled = PROCESSED_DIR / "rapm_pooled.parquet"
+    if pooled.exists():
+        return pd.read_parquet(pooled), "pooled"
+    singles = sorted(p for p in PROCESSED_DIR.glob("rapm_*.parquet") if p.name != "rapm_pooled.parquet")
+    if singles:
+        df = pd.read_parquet(singles[-1])
+        source = str(df["season"].iloc[0]) if len(df) else singles[-1].stem.removeprefix("rapm_")
+        return df, source
+    return None
+
+
+RAPM_COLS = ["player_name", "def_rapm", "def_ci_low", "def_ci_high", "off_rapm", "def_shots"]
+RAPM_ROUND = {"def_rapm": 2, "def_ci_low": 2, "def_ci_high": 2, "off_rapm": 2}
+
+
 def draw_court(ax) -> None:
     """Half-court outline (NBA dimensions in feet, basket at origin)."""
     ax.add_patch(mpatches.Circle((0, 0), 0.75, lw=2, fill=False, color="black"))
@@ -100,8 +121,8 @@ def main() -> None:
 
     qualified = board[board["attempts"] >= min_attempts].sort_values("poe_per_100", ascending=False)
 
-    tab_map, tab_top, tab_bottom, tab_stability = st.tabs(
-        ["Player shot map", "Top 20 POE", "Bottom 20 POE", "Stability"]
+    tab_map, tab_top, tab_bottom, tab_stability, tab_def = st.tabs(
+        ["Player shot map", "Top 20 POE", "Bottom 20 POE", "Stability", "Defender impact"]
     )
 
     with tab_map:
@@ -155,6 +176,47 @@ def main() -> None:
             st.image(str(pvr), use_container_width=True)
         else:
             st.info(f"Run `poe-vs-rts --season {season}` to generate the comparison plot.")
+
+    with tab_def:
+        st.subheader("Defender impact — ridge RAPM")
+        st.caption(
+            "Defensive coefficient on per-shot POE, per 100 defensive shots, signed so + = suppresses "
+            "opponent scoring vs expectation. On-floor attribution (all 5 defenders share credit, not "
+            "closest-defender) and FGA-only (excludes free throws, turnovers, non-shot defense)."
+        )
+        loaded = load_rapm()
+        if loaded is None:
+            st.info("Run `bash scripts/run_rapm.sh` to generate defender-impact ratings.")
+        else:
+            rapm, source = loaded
+            max_def = int(rapm["def_shots"].max()) if len(rapm) else 0
+            if source != "pooled":
+                st.warning(
+                    f"⚠️ Limited data — single-season partial sample (`{source}`, max "
+                    f"{max_def:,} defensive shots/player). This is a mechanics preview; the "
+                    "rankings are **not yet meaningful**. Run the full two-season pull for real ratings."
+                )
+            # Adapt the threshold to the available sample so the table isn't empty on partial data.
+            slider_max = max(500, max_def)
+            step = 250 if slider_max > 1500 else 25
+            default = ((min(1500, max_def // 2)) // step) * step
+            min_def = st.slider("Min defensive shots", 0, slider_max, default, step=step)
+            ranked = rapm[rapm["def_shots"] >= min_def].sort_values("def_rapm", ascending=False)
+            c_top, c_bot = st.columns(2)
+            with c_top:
+                st.markdown(f"**Top 15 defenders** (n={len(ranked)})")
+                st.dataframe(ranked.head(15)[RAPM_COLS].round(RAPM_ROUND), hide_index=True, use_container_width=True)
+            with c_bot:
+                st.markdown("**Bottom 15 defenders**")
+                st.dataframe(ranked.tail(15).iloc[::-1][RAPM_COLS].round(RAPM_ROUND), hide_index=True, use_container_width=True)
+            stab = sorted(REPORTS_DIR.glob("rapm_stability_*.png"))
+            face = sorted(REPORTS_DIR.glob("rapm_face_validity_*.png"))
+            if stab:
+                st.markdown("**Year-over-year RAPM stability**")
+                st.image(str(stab[-1]), use_container_width=True)
+            if face:
+                st.markdown("**Face validity vs tracking defended-FG metric**")
+                st.image(str(face[-1]), use_container_width=True)
 
 
 if __name__ == "__main__":
