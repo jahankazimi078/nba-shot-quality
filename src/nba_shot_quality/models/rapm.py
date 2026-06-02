@@ -50,13 +50,22 @@ def _name_map(seasons: list[str]) -> dict[int, str]:
     return names
 
 
+def _matchup_suffix(weighting: str, matchup_source: str) -> str:
+    """Output-parquet suffix: '' (uniform), '_matchup' (season shares), '_matchup_game' (per-game)."""
+    if weighting != "matchup":
+        return ""
+    return "_matchup_game" if matchup_source == "game" else "_matchup"
+
+
 def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = ALPHA_GRID,
-             weighting: str = "uniform", lam: float = 1.0) -> Path:
+             weighting: str = "uniform", lam: float = 1.0, matchup_source: str = "season") -> Path:
     """Fit pooled (or single-season) defender RAPM with game-level bootstrap CIs.
 
     weighting="uniform" splits each shot's defensive credit equally across the 5 on-floor defenders;
-    "matchup" weights it by who guarded the shooter (see apply_weighting). Matchup runs write a
-    separate `_matchup`-suffixed parquet so the uniform ratings are untouched.
+    "matchup" weights it by who guarded the shooter (see apply_weighting). matchup_source selects the
+    matchup tracking granularity: "season" (LeagueSeasonMatchups, averaged over the year) or "game"
+    (BoxScoreMatchupsV3, that game's actual assignments). Each variant writes a separate suffixed
+    parquet (`_matchup` / `_matchup_game`) so the uniform ratings are untouched.
     """
     frames = []
     for s in seasons:
@@ -65,9 +74,9 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
             raise FileNotFoundError(f"{path} not found — run lineups --season {s} first")
         frames.append(pd.read_parquet(path))
     long = pd.concat(frames, ignore_index=True)
-    print(f"[rapm] {len(long):,} on-floor rows from seasons {seasons}  weighting={weighting} lam={lam}")
+    print(f"[rapm] {len(long):,} on-floor rows from seasons {seasons}  weighting={weighting} source={matchup_source} lam={lam}")
     if weighting == "matchup":
-        long["weight"] = apply_weighting(long, lam, _load_matchups(seasons))
+        long["weight"] = apply_weighting(long, lam, _load_matchups(seasons, matchup_source))
 
     X, y, groups, players = _build_design(long)
     print(f"[rapm] design matrix {X.shape[0]:,} shots × {X.shape[1]:,} cols ({len(players):,} players), 10 nnz/row")
@@ -103,7 +112,7 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
         }
     )[OUTPUT_COLS].sort_values("def_rapm", ascending=False).reset_index(drop=True)
 
-    suffix = "_matchup" if weighting == "matchup" else ""
+    suffix = _matchup_suffix(weighting, matchup_source)
     stem = "rapm_pooled" if pooled else f"rapm_{seasons[0]}"
     out_path = PROCESSED_DIR / f"{stem}{suffix}.parquet"
     out.to_parquet(out_path, index=False)
@@ -118,12 +127,16 @@ def fit_rapm(seasons: list[str], n_boot: int = N_BOOT, alpha_grid: np.ndarray = 
     return out_path
 
 
-def _load_matchups(seasons: list[str]) -> dict[str, pd.DataFrame]:
+def _load_matchups(seasons: list[str], source: str = "season") -> dict[str, pd.DataFrame]:
+    """Load matchup tracking per season. source="season" -> LeagueSeasonMatchups totals;
+    "game" -> per-game BoxScoreMatchupsV3 (carries a game_id column the weighting merges on)."""
+    stem = "box_matchups" if source == "game" else "matchups"
+    cmd = "ingest-box-matchups" if source == "game" else "ingest-matchups"
     out = {}
     for s in seasons:
-        p = RAW_DIR / f"matchups_{s}.parquet"
+        p = RAW_DIR / f"{stem}_{s}.parquet"
         if not p.exists():
-            raise FileNotFoundError(f"{p} not found — run ingest-matchups --season {s} first")
+            raise FileNotFoundError(f"{p} not found — run {cmd} --season {s} first")
         out[s] = pd.read_parquet(p)
     return out
 
@@ -131,22 +144,28 @@ def _load_matchups(seasons: list[str]) -> dict[str, pd.DataFrame]:
 def apply_weighting(long: pd.DataFrame, lam: float, matchups: dict[str, pd.DataFrame]) -> np.ndarray:
     """Per-row design weight: offense rows -> 1.0; defense rows -> 5 * blended matchup share.
 
-    For each shot, a defender's share is its season partial-possessions guarding that shot's shooter,
+    For each shot, a defender's share is its partial-possessions guarding that shot's shooter,
     normalized over the shot's 5 on-floor defenders (uniform 1/5 fallback when no matchup data exists).
     w_d = 5 * [(1-lam)*(1/5) + lam*share5_d], so the total defensive mass per shot stays 5 — making
     uniform attribution the exact lam=0 special case and leaving the offense/defense scale unchanged.
+
+    The matchup frames may be season totals (merge key: shooter+defender) or per-game
+    BoxScoreMatchupsV3 (frames carry `game_id`, so the merge also keys on the shot's game) — the
+    per-game variant pins credit to the defender who actually guarded the shooter *in that game*.
     """
     if "shooter_id" not in long.columns:
         raise KeyError("shot_lineups lacks shooter_id — re-run `lineups` to add it")
+    per_game = all("game_id" in m.columns for m in matchups.values())
     w = np.ones(len(long), dtype=np.float64)
     defmask = long["side"].to_numpy() == 1
-    dd = long.loc[defmask, ["season", "shot_uid", "shooter_id", "person_id"]].reset_index()
+    cols = ["season", "shot_uid", "shooter_id", "person_id"] + (["game_id"] if per_game else [])
+    dd = long.loc[defmask, cols].reset_index()
+    mu_cols = ["off_player_id", "def_player_id", "partial_poss"] + (["game_id"] if per_game else [])
     mu = pd.concat(
-        [m[["off_player_id", "def_player_id", "partial_poss"]].assign(season=s) for s, m in matchups.items()],
-        ignore_index=True,
-    )
-    dd = dd.merge(mu, how="left", left_on=["season", "shooter_id", "person_id"],
-                  right_on=["season", "off_player_id", "def_player_id"])
+        [m[mu_cols].assign(season=s) for s, m in matchups.items()], ignore_index=True
+    ).rename(columns={"off_player_id": "shooter_id", "def_player_id": "person_id"})
+    on_keys = ["season", "shooter_id", "person_id"] + (["game_id"] if per_game else [])
+    dd = dd.merge(mu, how="left", on=on_keys)
     dd["pp"] = dd["partial_poss"].fillna(0.0)
     dd["sk"] = dd["season"] + ":" + dd["shot_uid"].astype(str)
     tot = dd.groupby("sk")["pp"].transform("sum").to_numpy()

@@ -179,21 +179,22 @@ def _sb(r: float) -> float:  # Spearman-Brown: half-length r -> full-length reli
 
 
 def splithalf_reliability(season: str, min_def_shots: int = 1500,
-                          weighting: str = "uniform", lam: float = 1.0) -> dict:
+                          weighting: str = "uniform", lam: float = 1.0,
+                          matchup_source: str = "season") -> dict:
     """Within-season split-half reliability — the measurement-noise ceiling (no roster change).
 
     Splits the season's games into two random halves, fits RAPM on each at a shared alpha, and
     correlates per-player coefficients across halves. Spearman-Brown adjusts the half-length
     correlation up to the full-season reliability. With weighting="matchup" the defensive design is
-    matchup-weighted, so this directly measures whether matchup attribution lifts the ceiling.
-    Returns {def_r, def_sb, off_r, off_sb, n}.
+    matchup-weighted (matchup_source picks season vs per-game tracking), so this directly measures
+    whether matchup attribution lifts the ceiling. Returns {def_r, def_sb, off_r, off_sb, n}.
     """
     from nba_shot_quality.models import rapm as R
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     long = pd.read_parquet(PROCESSED_DIR / f"shot_lineups_{season}.parquet")
     if weighting == "matchup":
-        long["weight"] = R.apply_weighting(long, lam, R._load_matchups([season]))
+        long["weight"] = R.apply_weighting(long, lam, R._load_matchups([season], matchup_source))
     games = np.sort(long["game_id"].unique())
     perm = np.random.default_rng(0).permutation(len(games))
     half_a = set(games[perm[: len(games) // 2]])
@@ -215,11 +216,13 @@ def splithalf_reliability(season: str, min_def_shots: int = 1500,
 
     r_def = _pearson(m["deff_a"].to_numpy(), m["deff_b"].to_numpy())
     r_off = _pearson(m["off_a"].to_numpy(), m["off_b"].to_numpy())
-    print(f"[rapm_eval] split-half reliability {season} [{weighting}] (alpha={alpha:.0f}, n={len(m):,}):")
+    variant = weighting if weighting != "matchup" else f"matchup/{matchup_source}"
+    print(f"[rapm_eval] split-half reliability {season} [{variant}] (alpha={alpha:.0f}, n={len(m):,}):")
     print(f"  DEF  half-half r={r_def:.3f}  ->  full-season reliability (Spearman-Brown) {_sb(r_def):.3f}")
     print(f"  OFF  half-half r={r_off:.3f}  ->  full-season reliability (Spearman-Brown) {_sb(r_off):.3f}")
 
-    suffix = "_matchup" if weighting == "matchup" else ""
+    from nba_shot_quality.models.rapm import _matchup_suffix
+    suffix = _matchup_suffix(weighting, matchup_source)
     fig, ax = plt.subplots(figsize=(7.5, 7))
     ax.scatter(m["deff_a"], m["deff_b"], s=20, alpha=0.6, edgecolor="black", linewidths=0.2, label="defense")
     ax.scatter(m["off_a"], m["off_b"], s=20, alpha=0.4, edgecolor="black", linewidths=0.2, label="offense", color="orange")
@@ -227,7 +230,7 @@ def splithalf_reliability(season: str, min_def_shots: int = 1500,
     ax.axvline(0, color="grey", lw=0.8)
     ax.set_xlabel("RAPM — random half A")
     ax.set_ylabel("RAPM — random half B")
-    ax.set_title(f"Split-half reliability — {season} [{weighting}]\n"
+    ax.set_title(f"Split-half reliability — {season} [{variant}]\n"
                  f"DEF r={r_def:.3f} (SB {_sb(r_def):.3f})  OFF r={r_off:.3f} (SB {_sb(r_off):.3f})")
     ax.legend()
     ax.grid(alpha=0.3)
@@ -265,40 +268,54 @@ def _facevalidity_r(season: str, suffix: str, min_def_shots: int) -> float:
     return _pearson(m["def_rapm"].to_numpy(), m["sup"].to_numpy()) if len(m) > 2 else float("nan")
 
 
-def weighting_compare(season_a: str, season_b: str, min_def_shots: int = 1500, lam: float = 1.0) -> Path:
+def weighting_compare(season_a: str, season_b: str, min_def_shots: int = 1500, lam: float = 1.0,
+                      sources: list[str] | None = None) -> Path:
     """Decision table: does matchup-weighting beat uniform on defensive reliability/stability?
 
-    Runs split-half reliability under both weightings for each season, plus YoY def_rapm correlation
-    and PtDefend face validity from the (separately fit) per-season parquets. Writes a grouped bar
-    chart so the comparison is read at a glance.
+    Compares uniform against each matchup `sources` granularity ("season" = LeagueSeasonMatchups,
+    "game" = per-game BoxScoreMatchupsV3). For each variant it runs split-half reliability per season
+    plus YoY def_rapm correlation and PtDefend face validity from the (separately fit) per-season
+    parquets, then writes a grouped bar chart so the comparison is read at a glance. The matchup
+    parquets must already exist for the requested sources (rapm --weighting matchup --matchup-source ...).
     """
+    from nba_shot_quality.models.rapm import _matchup_suffix
+
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    rel = {w: {s: splithalf_reliability(s, min_def_shots, weighting=w, lam=lam)
-               for s in (season_a, season_b)} for w in ("uniform", "matchup")}
-    yoy = {w: _yoy_def_r(season_a, season_b, "_matchup" if w == "matchup" else "", min_def_shots)
-           for w in ("uniform", "matchup")}
-    face = {w: _facevalidity_r(season_b, "_matchup" if w == "matchup" else "", min_def_shots)
-            for w in ("uniform", "matchup")}
+    sources = sources or ["season"]
+    # (label, weighting, matchup_source, parquet suffix), uniform first as the baseline.
+    variants = [("uniform", "uniform", "season", "")]
+    variants += [(f"matchup-{src}", "matchup", src, _matchup_suffix("matchup", src)) for src in sources]
 
+    rel = {lbl: {s: splithalf_reliability(s, min_def_shots, weighting=w, lam=lam, matchup_source=src)
+                 for s in (season_a, season_b)} for lbl, w, src, _suf in variants}
+    yoy = {lbl: _yoy_def_r(season_a, season_b, suf, min_def_shots) for lbl, _w, _src, suf in variants}
+    face = {lbl: _facevalidity_r(season_b, suf, min_def_shots) for lbl, _w, _src, suf in variants}
+
+    labels_v = [v[0] for v in variants]
     print("\n[rapm_eval] ===== WEIGHTING COMPARISON (defense) =====")
-    print(f"  {'metric':<34}{'uniform':>10}{'matchup':>10}")
+    header = f"  {'metric':<34}" + "".join(f"{lbl:>14}" for lbl in labels_v)
+    print(header)
     for s in (season_a, season_b):
-        print(f"  {'split-half reliability '+s:<34}{rel['uniform'][s]['def_sb']:>10.3f}{rel['matchup'][s]['def_sb']:>10.3f}")
-    print(f"  {'YoY def_rapm '+season_a+'->'+season_b:<34}{yoy['uniform']:>10.3f}{yoy['matchup']:>10.3f}")
-    print(f"  {'face validity vs PtDefend '+season_b:<34}{face['uniform']:>10.3f}{face['matchup']:>10.3f}")
+        print(f"  {'split-half reliability '+s:<34}" + "".join(f"{rel[lbl][s]['def_sb']:>14.3f}" for lbl in labels_v))
+    print(f"  {'YoY def_rapm '+season_a+'->'+season_b:<34}" + "".join(f"{yoy[lbl]:>14.3f}" for lbl in labels_v))
+    print(f"  {'face validity vs PtDefend '+season_b:<34}" + "".join(f"{face[lbl]:>14.3f}" for lbl in labels_v))
 
-    labels = [f"reliab\n{season_a}", f"reliab\n{season_b}", f"YoY\n{season_a[-5:]}->{season_b[-5:]}", f"face\n{season_b}"]
-    uni = [rel["uniform"][season_a]["def_sb"], rel["uniform"][season_b]["def_sb"], yoy["uniform"], face["uniform"]]
-    mat = [rel["matchup"][season_a]["def_sb"], rel["matchup"][season_b]["def_sb"], yoy["matchup"], face["matchup"]]
-    x = np.arange(len(labels))
-    fig, ax = plt.subplots(figsize=(9, 5.5))
-    ax.bar(x - 0.2, uni, 0.4, label="uniform", color="steelblue")
-    ax.bar(x + 0.2, mat, 0.4, label="matchup", color="darkorange")
-    for i, (u, mv) in enumerate(zip(uni, mat)):
-        ax.text(i - 0.2, u, f"{u:.2f}", ha="center", va="bottom", fontsize=8)
-        ax.text(i + 0.2, mv, f"{mv:.2f}", ha="center", va="bottom", fontsize=8)
+    metrics = [f"reliab\n{season_a}", f"reliab\n{season_b}", f"YoY\n{season_a[-5:]}->{season_b[-5:]}", f"face\n{season_b}"]
+    series = {lbl: [rel[lbl][season_a]["def_sb"], rel[lbl][season_b]["def_sb"], yoy[lbl], face[lbl]] for lbl in labels_v}
+    x = np.arange(len(metrics))
+    n = len(labels_v)
+    width = 0.8 / n
+    colors = ["steelblue", "darkorange", "seagreen", "crimson"]
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    for i, lbl in enumerate(labels_v):
+        off = (i - (n - 1) / 2) * width
+        vals = series[lbl]
+        ax.bar(x + off, vals, width, label=lbl, color=colors[i % len(colors)])
+        for xi, v in zip(x, vals):
+            if np.isfinite(v):
+                ax.text(xi + off, v, f"{v:.2f}", ha="center", va="bottom", fontsize=7)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels)
+    ax.set_xticklabels(metrics)
     ax.set_ylabel("Pearson r (defense)")
     ax.set_title(f"Defensive RAPM: uniform vs matchup-weighted (lam={lam})")
     ax.legend()
