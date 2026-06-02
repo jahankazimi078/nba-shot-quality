@@ -86,6 +86,19 @@ def main() -> None:
     p_bmu.add_argument("--season", required=True)
     p_bmu.add_argument("--force", action="store_true", help="re-pull even if cached")
 
+    p_tl = sub.add_parser("ingest-team-logs", help="pull per-team-game box-score totals (LeagueGameLog) from nba_api")
+    p_tl.add_argument("--season", required=True)
+    p_tl.add_argument("--force", action="store_true", help="re-pull even if cached")
+
+    p_panel = sub.add_parser("build-def-panel", help="build per-team-per-game defense panel (xPoints/points/possessions allowed)")
+    p_panel.add_argument("--season", required=True)
+
+    p_cs = sub.add_parser("coaching-study", help="coaching-change difference-in-differences event study")
+    p_cs.add_argument("--windows", type=int, nargs="+", default=[10, 20, 30], help="before/after game windows to test")
+    p_cs.add_argument("--n-boot", type=int, default=1000)
+    p_cs.add_argument("--metric", choices=["xpts_100poss", "pts_100poss", "xpts_100shots"], default="xpts_100poss",
+                      help="headline outcome metric (default: allowed xPoints per 100 possessions)")
+
     args = parser.parse_args()
     if args.cmd == "ingest":
         from nba_shot_quality.ingest.shotlogs import ingest_season
@@ -172,6 +185,18 @@ def main() -> None:
         from nba_shot_quality.ingest.box_matchups import ingest_box_matchups
 
         ingest_box_matchups(args.season, force=args.force)
+    elif args.cmd == "ingest-team-logs":
+        from nba_shot_quality.ingest.team_game_logs import ingest_team_game_logs
+
+        ingest_team_game_logs(args.season, force=args.force)
+    elif args.cmd == "build-def-panel":
+        from nba_shot_quality.analysis.coaching_event_study import build_def_panel
+
+        build_def_panel(args.season)
+    elif args.cmd == "coaching-study":
+        from nba_shot_quality.analysis.coaching_event_study import run_coaching_study
+
+        run_coaching_study(windows=tuple(args.windows), n_boot=args.n_boot, metric=args.metric)
 
 
 if __name__ == "__main__":
