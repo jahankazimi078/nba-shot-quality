@@ -8,6 +8,8 @@ dist/
 data/raw/
 data/processed/
 reports/
+!static/assets/reports/
+!static/assets/reports/*.png
 *.joblib
 
 .ipynb_checkpoints/
