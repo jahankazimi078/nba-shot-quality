@@ -99,6 +99,10 @@ def main() -> None:
     p_cs.add_argument("--metric", choices=["xpts_100poss", "pts_100poss", "xpts_100shots"], default="xpts_100poss",
                       help="headline outcome metric (default: allowed xPoints per 100 possessions)")
 
+    p_app = sub.add_parser("app-artifacts", help="build CSV data package for the browser app")
+    p_app.add_argument("--seasons", nargs="+", default=["2022-23", "2023-24", "2024-25"])
+    p_app.add_argument("--n-clusters", type=int, default=5, help="shot-diet archetype clusters")
+
     args = parser.parse_args()
     if args.cmd == "ingest":
         from nba_shot_quality.ingest.shotlogs import ingest_season
@@ -197,6 +201,10 @@ def main() -> None:
         from nba_shot_quality.analysis.coaching_event_study import run_coaching_study
 
         run_coaching_study(windows=tuple(args.windows), n_boot=args.n_boot, metric=args.metric)
+    elif args.cmd == "app-artifacts":
+        from nba_shot_quality.app_artifacts import build_app_artifacts
+
+        build_app_artifacts(seasons=tuple(args.seasons), n_clusters=args.n_clusters)
 
 
 if __name__ == "__main__":

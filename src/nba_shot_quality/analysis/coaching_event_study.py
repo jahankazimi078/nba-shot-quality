@@ -445,7 +445,7 @@ def run_coaching_study(windows: tuple[int, ...] = (10, 20, 30), n_boot: int = 10
                   f"n={int(r['n_pre'])}/{int(r['n_post'])}):  "
                   f"treated Δ{r['treated_delta']:+5.1f}  control Δ{r['control_delta']:+5.1f}  -> DiD {r['did']:+5.1f}")
 
-    print(f"\n[coaching] ===== pooled DiD (mean of per-event), all metrics =====")
+    print("\n[coaching] ===== pooled DiD (mean of per-event), all metrics =====")
     print(f"  {'metric':<28}{'W':>4}{'n':>4}{'pooledDiD':>11}{'  event-cluster 95% CI':>26}{'  game-level 95% CI':>24}")
     for _, r in summary.iterrows():
         print(f"  {r['metric']:<28}{int(r['window']):>4}{int(r['n_events']):>4}{r['pooled_did']:>11.2f}"

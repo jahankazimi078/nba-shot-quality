@@ -1,0 +1,21 @@
+file,bytes,description
+data/archetype_summary.csv,3141,Per-season archetype aggregates.
+data/coaching_did_results.csv,12130,Coaching-change difference-in-differences estimates.
+data/coaching_did_summary.csv,1120,Coaching-change difference-in-differences estimates.
+data/leaderboard.csv,257833,"POE leaderboard with points, xPoints, confidence intervals, TS%, and rTS%."
+data/leaderboard_2022-23.csv,87201,"POE leaderboard with points, xPoints, confidence intervals, TS%, and rTS%."
+data/leaderboard_2023-24.csv,83446,"POE leaderboard with points, xPoints, confidence intervals, TS%, and rTS%."
+data/leaderboard_2024-25.csv,87502,"POE leaderboard with points, xPoints, confidence intervals, TS%, and rTS%."
+data/model_evidence.csv,1881,Report image index bundled with the dashboard.
+data/player_profiles.csv,423578,"Player profile metrics, shot-zone shares, and shot-diet archetypes."
+data/player_profiles_2022-23.csv,143246,"Player profile metrics, shot-zone shares, and shot-diet archetypes."
+data/player_profiles_2023-24.csv,136904,"Player profile metrics, shot-zone shares, and shot-diet archetypes."
+data/player_profiles_2024-25.csv,144034,"Player profile metrics, shot-zone shares, and shot-diet archetypes."
+data/rapm_pooled.csv,158617,Pooled RAPM shot-quality impact ratings.
+data/season_summary.csv,500,Season-level totals and headline POE leaders.
+data/shot_map_sample_2022-23.csv,7542857,Deterministic per-player shot sample used by browser shot maps.
+data/shot_map_sample_2023-24.csv,7500665,Deterministic per-player shot sample used by browser shot maps.
+data/shot_map_sample_2024-25.csv,7820095,Deterministic per-player shot sample used by browser shot maps.
+data/shots_2022-23.csv,18641518,Full per-shot xPoints and POE export for one season.
+data/shots_2023-24.csv,18804125,Full per-shot xPoints and POE export for one season.
+data/shots_2024-25.csv,18884734,Full per-shot xPoints and POE export for one season.

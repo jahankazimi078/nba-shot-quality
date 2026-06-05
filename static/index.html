@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NBA Shot Quality | Shot-Making Analytics Portfolio</title>
+    <meta
+      name="description"
+      content="Interactive NBA shot-quality dashboard for xPoints, POE shooter skill, shot-diet archetypes, RAPM impact, and coaching-change evidence."
+    />
+    <meta
+      name="keywords"
+      content="NBA analytics, basketball analytics, shot quality, expected points, POE, RAPM, difference in differences, data science portfolio"
+    />
+    <meta name="theme-color" content="#0f766e" />
+    <link rel="canonical" href="https://jahankazimi078.github.io/nba-shot-quality/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="NBA Shot Quality" />
+    <meta
+      property="og:description"
+      content="A browser dashboard for shot-quality adjusted scoring, player shot diets, model evidence, RAPM, and coaching-change analysis."
+    />
+    <meta property="og:url" content="https://jahankazimi078.github.io/nba-shot-quality/" />
+    <meta property="og:image" content="https://jahankazimi078.github.io/nba-shot-quality/assets/social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NBA Shot Quality" />
+    <meta
+      name="twitter:description"
+      content="Shot-quality adjusted scoring, shooter archetypes, RAPM impact, and coaching-change evidence from public NBA data."
+    />
+    <meta name="twitter:image" content="https://jahankazimi078.github.io/nba-shot-quality/assets/social-preview.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Basketball analytics portfolio</p>
+        <h1>NBA Shot Quality</h1>
+        <p class="lede">
+          Shot-quality adjusted scoring, shooter archetypes, RAPM impact, and coaching-change evidence
+          from public NBA data.
+        </p>
+      </div>
+      <div class="header-actions" aria-label="Global controls">
+        <label>
+          Season
+          <select id="seasonSelect"></select>
+        </label>
+        <a class="data-link" href="?view=data">Data exports</a>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Dashboard sections">
+      <button data-view="overview" aria-selected="true">Overview</button>
+      <button data-view="compare" aria-selected="false">Compare</button>
+      <button data-view="archetypes" aria-selected="false">Archetypes</button>
+      <button data-view="evidence" aria-selected="false">Evidence</button>
+      <button data-view="coaching" aria-selected="false">Coaching</button>
+      <button data-view="data" aria-selected="false">Data</button>
+    </nav>
+
+    <main id="app" class="app-shell" tabindex="-1">
+      <section class="loading">Preparing the dashboard data...</section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Player scoring, shot diet, model evidence, and coaching-change analysis in one dashboard.</span>
+      <span>Tip: start with POE/100, then use shot mix and archetype to understand how the player gets there.</span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

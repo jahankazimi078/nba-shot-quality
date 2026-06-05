@@ -1,0 +1,21 @@
+asset,name,section
+assets/reports/calibration_2024-25.png,calibration_2024-25.png,xPoints calibration
+assets/reports/coaching_did_summary.png,coaching_did_summary.png,Coaching study
+assets/reports/coaching_event_study.png,coaching_event_study.png,Coaching study
+assets/reports/poe_stability_2023-24_vs_2024-25.png,poe_stability_2023-24_vs_2024-25.png,POE validation
+assets/reports/poe_vs_rts_2024-25.png,poe_vs_rts_2024-25.png,POE validation
+assets/reports/rapm_face_validity_2023-24.png,rapm_face_validity_2023-24.png,RAPM validation
+assets/reports/rapm_face_validity_2024-25.png,rapm_face_validity_2024-25.png,RAPM validation
+assets/reports/rapm_off_vs_poe_2023-24.png,rapm_off_vs_poe_2023-24.png,RAPM validation
+assets/reports/rapm_off_vs_poe_2024-25.png,rapm_off_vs_poe_2024-25.png,RAPM validation
+assets/reports/rapm_splithalf_2022-23.png,rapm_splithalf_2022-23.png,RAPM validation
+assets/reports/rapm_splithalf_2022-23_matchup.png,rapm_splithalf_2022-23_matchup.png,RAPM validation
+assets/reports/rapm_splithalf_2023-24.png,rapm_splithalf_2023-24.png,RAPM validation
+assets/reports/rapm_splithalf_2023-24_matchup.png,rapm_splithalf_2023-24_matchup.png,RAPM validation
+assets/reports/rapm_splithalf_2023-24_matchup_game.png,rapm_splithalf_2023-24_matchup_game.png,RAPM validation
+assets/reports/rapm_splithalf_2024-25.png,rapm_splithalf_2024-25.png,RAPM validation
+assets/reports/rapm_splithalf_2024-25_matchup.png,rapm_splithalf_2024-25_matchup.png,RAPM validation
+assets/reports/rapm_splithalf_2024-25_matchup_game.png,rapm_splithalf_2024-25_matchup_game.png,RAPM validation
+assets/reports/rapm_stability_2022-23_vs_2023-24.png,rapm_stability_2022-23_vs_2023-24.png,RAPM validation
+assets/reports/rapm_stability_2023-24_vs_2024-25.png,rapm_stability_2023-24_vs_2024-25.png,RAPM validation
+assets/reports/rapm_weighting_compare.png,rapm_weighting_compare.png,RAPM validation

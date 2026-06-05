@@ -336,7 +336,7 @@ def ptdefend_yoy(season_a: str, season_b: str, min_d_fga: int = 300) -> float | 
     """
     pa_path, pb_path = RAW_DIR / f"pt_defend_{season_a}.parquet", RAW_DIR / f"pt_defend_{season_b}.parquet"
     if not (pa_path.exists() and pb_path.exists()):
-        print(f"[rapm_eval] skip ptdefend_yoy: missing pt_defend parquet(s) (run ingest-def)")
+        print("[rapm_eval] skip ptdefend_yoy: missing pt_defend parquet(s) (run ingest-def)")
         return None
     m = pd.read_parquet(pa_path).merge(pd.read_parquet(pb_path), on="player_id", suffixes=("_a", "_b"))
     m = m[(m["d_fga_a"] >= min_d_fga) & (m["d_fga_b"] >= min_d_fga)]

@@ -68,7 +68,7 @@ def _resolve_in_player(roster: dict[int, tuple[str, str]], desc_name: str) -> in
     """Map a substitution's IN-player description name to a person_id within the team's roster."""
     m = _INITIAL_RE.match(desc_name.strip())
     prefix, last = (_fold(m.group(1)), _fold(m.group(2))) if m else (None, _fold(desc_name))
-    cands = [pid for pid, (_f, l) in roster.items() if l == last]
+    cands = [pid for pid, (_first, last_name) in roster.items() if last_name == last]
     if len(cands) == 1:
         return cands[0]
     if prefix:  # disambiguate same-last-name teammates by first-name prefix (Jay -> Jaylin)
