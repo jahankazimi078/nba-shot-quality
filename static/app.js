@@ -43,15 +43,18 @@ const zoneFields = [
   ["above_break_3_share", "Above break 3"],
 ];
 const colors = {
-  primary: "#0f766e",
-  comparison: "#6f5aa8",
-  warm: "#d45b4c",
-  gold: "#b98b2d",
-  good: "#138a5b",
-  bad: "#b6423a",
-  neutral: "#aeb8bf",
-  line: "#d6dde2",
-  ink: "#17212b",
+  primary: "#ff6b35",
+  comparison: "#a78bfa",
+  warm: "#ff5c5c",
+  gold: "#ffc960",
+  good: "#3ddc97",
+  bad: "#ff5c5c",
+  neutral: "#7a8494",
+  line: "#232936",
+  ink: "#edeff4",
+  muted: "#9aa3b2",
+  court: "#3a4150",
+  bg: "#0a0c10",
 };
 
 const app = document.querySelector("#app");
@@ -158,6 +161,14 @@ function fmt(value, digits = 1, signed = false) {
 function pct(value, digits = 1, signed = false) {
   if (value === "" || value === null || value === undefined || Number.isNaN(Number(value))) return "n/a";
   return `${fmt(Number(value) * 100, digits, signed)}%`;
+}
+
+function signedCell(value, digits = 1, formatter = fmt) {
+  const text = formatter(value, digits, true);
+  if (text === "n/a") return text;
+  const number = Number(value);
+  const cls = number > 0 ? "pos" : number < 0 ? "neg" : "";
+  return cls ? `<span class="${cls}">${text}</span>` : text;
 }
 
 function playerRows(season = state.season) {
@@ -329,7 +340,7 @@ function barChart(container, rows, options) {
       true,
     );
   });
-  svg.appendChild(svgEl("line", { x1: zero, x2: zero, y1: 12, y2: height - 22, stroke: colors.ink, "stroke-width": 1 }));
+  svg.appendChild(svgEl("line", { x1: zero, x2: zero, y1: 12, y2: height - 22, stroke: colors.court, "stroke-width": 1 }));
   container.replaceChildren(svg);
 }
 
@@ -353,7 +364,7 @@ function scatterChart(container, rows, options = {}) {
     const yValue = yMin + ((yMax - yMin) / 5) * tick;
     const y = scale(yValue, yMin, yMax, height - margin.bottom, margin.top);
     svg.appendChild(svgEl("line", { x1: margin.left, x2: width - margin.right, y1: y, y2: y, stroke: colors.line }));
-    svg.appendChild(svgEl("text", { x: margin.left - 10, y: y + 4, "text-anchor": "end", "font-size": 11, fill: "#60707c" }))
+    svg.appendChild(svgEl("text", { x: margin.left - 10, y: y + 4, "text-anchor": "end", "font-size": 11, fill: colors.muted }))
       .textContent = pct(yValue, 0);
   }
 
@@ -367,8 +378,8 @@ function scatterChart(container, rows, options = {}) {
         cy: y,
         r: radius,
         fill: poeColor(row.poe_per_100),
-        opacity: 0.72,
-        stroke: colors.ink,
+        opacity: 0.78,
+        stroke: colors.bg,
         "stroke-width": 0.6,
       }),
     ).appendChild(svgEl("title")).textContent = `${row.player_name}: ${fmt(row.poe_per_100, 1, true)} POE/100`;
@@ -380,7 +391,7 @@ function scatterChart(container, rows, options = {}) {
     svg.appendChild(svgEl("text", { x: x + 8, y: y - 8, "font-size": 11, fill: colors.ink })).textContent =
       row.player_name;
   });
-  svg.appendChild(svgEl("text", { x: width / 2, y: height - 12, "text-anchor": "middle", "font-size": 12, fill: "#60707c" }))
+  svg.appendChild(svgEl("text", { x: width / 2, y: height - 12, "text-anchor": "middle", "font-size": 12, fill: colors.muted }))
     .textContent = "Average shot distance";
   svg.appendChild(
     svgEl("text", {
@@ -389,7 +400,7 @@ function scatterChart(container, rows, options = {}) {
       transform: `rotate(-90 16 ${height / 2})`,
       "text-anchor": "middle",
       "font-size": 12,
-      fill: "#60707c",
+      fill: colors.muted,
     }),
   ).textContent = "3PA rate";
   container.replaceChildren(svg);
@@ -398,13 +409,13 @@ function scatterChart(container, rows, options = {}) {
 function drawCourt(svg, width, height) {
   const cx = (x) => scale(x, -27, 27, 0, width);
   const cy = (y) => scale(y, -6, 49, height, 0);
-  const line = (x1, y1, x2, y2) => svg.appendChild(svgEl("line", { x1: cx(x1), y1: cy(y1), x2: cx(x2), y2: cy(y2), stroke: colors.ink, "stroke-width": 1.8 }));
-  svg.appendChild(svgEl("rect", { x: cx(-25), y: cy(47), width: cx(25) - cx(-25), height: cy(-4) - cy(47), fill: "none", stroke: colors.ink, "stroke-width": 1.8 }));
-  svg.appendChild(svgEl("circle", { cx: cx(0), cy: cy(0), r: 7, fill: "none", stroke: colors.ink, "stroke-width": 1.8 }));
-  svg.appendChild(svgEl("rect", { x: cx(-8), y: cy(15), width: cx(8) - cx(-8), height: cy(-4) - cy(15), fill: "none", stroke: colors.ink, "stroke-width": 1.8 }));
+  const line = (x1, y1, x2, y2) => svg.appendChild(svgEl("line", { x1: cx(x1), y1: cy(y1), x2: cx(x2), y2: cy(y2), stroke: colors.court, "stroke-width": 1.8 }));
+  svg.appendChild(svgEl("rect", { x: cx(-25), y: cy(47), width: cx(25) - cx(-25), height: cy(-4) - cy(47), fill: "none", stroke: colors.court, "stroke-width": 1.8 }));
+  svg.appendChild(svgEl("circle", { cx: cx(0), cy: cy(0), r: 7, fill: "none", stroke: colors.court, "stroke-width": 1.8 }));
+  svg.appendChild(svgEl("rect", { x: cx(-8), y: cy(15), width: cx(8) - cx(-8), height: cy(-4) - cy(15), fill: "none", stroke: colors.court, "stroke-width": 1.8 }));
   line(-22, -4, -22, 10);
   line(22, -4, 22, 10);
-  svg.appendChild(svgEl("path", { d: `M ${cx(-22)} ${cy(10)} A ${cx(23.75) - cx(0)} ${cy(0) - cy(23.75)} 0 0 1 ${cx(22)} ${cy(10)}`, fill: "none", stroke: colors.ink, "stroke-width": 1.8 }));
+  svg.appendChild(svgEl("path", { d: `M ${cx(-22)} ${cy(10)} A ${cx(23.75) - cx(0)} ${cy(0) - cy(23.75)} 0 0 1 ${cx(22)} ${cy(10)}`, fill: "none", stroke: colors.court, "stroke-width": 1.8 }));
 }
 
 function shotMap(container, rows, title) {
@@ -425,8 +436,8 @@ function shotMap(container, rows, title) {
         cy,
         r: 3.1,
         fill: row.poe > 0 ? colors.good : colors.bad,
-        opacity: 0.58,
-        stroke: colors.ink,
+        opacity: 0.62,
+        stroke: colors.bg,
         "stroke-width": 0.25,
       }),
     );
@@ -455,10 +466,10 @@ function shotMix(container, row) {
         width: barW,
         height: barH,
         rx: 5,
-        fill: [colors.primary, "#4d99a2", colors.gold, colors.warm, colors.comparison][index],
+        fill: [colors.primary, "#2dd4bf", colors.gold, colors.warm, colors.comparison][index],
       }),
     );
-    svg.appendChild(svgEl("text", { x: x + barW / 2, y: height - 20, "text-anchor": "middle", "font-size": 11, fill: "#60707c" }))
+    svg.appendChild(svgEl("text", { x: x + barW / 2, y: height - 20, "text-anchor": "middle", "font-size": 11, fill: colors.muted }))
       .textContent = label;
     svg.appendChild(svgEl("text", { x: x + barW / 2, y: height - margin.bottom - barH - 6, "text-anchor": "middle", "font-size": 11, fill: colors.ink }))
       .textContent = pct(row[key] || 0, 0);
@@ -477,8 +488,8 @@ function overview() {
     <section class="metric-strip">
       ${metric("Shots", fmt(summary.shots, 0), "field-goal attempts")}
       ${metric("Qualified players", fmt(summary.qualified_players_400_fga, 0), "400+ FGA")}
-      ${metric("Best POE / 100", fmt(top.poe_per_100, 1, true), top.player_name)}
-      ${metric("Lowest POE / 100", fmt(bottom.poe_per_100, 1, true), bottom.player_name)}
+      ${metric("Best POE / 100", signedCell(top.poe_per_100, 1), top.player_name)}
+      ${metric("Lowest POE / 100", signedCell(bottom.poe_per_100, 1), bottom.player_name)}
     </section>
     ${metricGuide()}
     <section class="panel">
@@ -515,10 +526,10 @@ function leaderboardTable(rows) {
     { key: "player_name", label: "Player" },
     { key: "archetype", label: "Archetype" },
     { key: "attempts", label: "FGA", format: (v) => fmt(v, 0) },
-    { key: "poe_per_100", label: "POE/100", format: (v) => fmt(v, 1, true) },
+    { key: "poe_per_100", label: "POE/100", format: (v) => signedCell(v, 1) },
     { key: "pps", label: "PPS", format: (v) => fmt(v, 3) },
     { key: "xpps", label: "xPPS", format: (v) => fmt(v, 3) },
-    { key: "rel_ts_pct", label: "rTS%", format: (v) => pct(v, 1, true) },
+    { key: "rel_ts_pct", label: "rTS%", format: (v) => signedCell(v, 1, pct) },
   ]);
 }
 
@@ -589,8 +600,8 @@ function playerPanel(row, label) {
         <strong>${label}</strong>
       </div>
       <div class="metric-strip">
-        ${metric("POE / 100", fmt(row.poe_per_100, 1, true))}
-        ${metric("PPS - xPPS", fmt(delta, 3, true))}
+        ${metric("POE / 100", signedCell(row.poe_per_100, 1))}
+        ${metric("PPS - xPPS", signedCell(delta, 3))}
         ${metric("3PA rate", pct(row.three_pa_rate, 1))}
         ${metric("Rim rate", pct(row.rim_rate, 1))}
       </div>
@@ -709,7 +720,7 @@ function evidence() {
 function rapmTable(rows) {
   return table(rows, [
     { key: "player_name", label: "Player" },
-    { key: "net_rapm", label: "Net", format: (v) => fmt(v, 2, true) },
+    { key: "net_rapm", label: "Net", format: (v) => signedCell(v, 2) },
     { key: "off_rapm", label: "Off", format: (v) => fmt(v, 2, true) },
     { key: "def_rapm", label: "Def", format: (v) => fmt(v, 2, true) },
     { key: "def_shots", label: "Def shots", format: (v) => fmt(v, 0) },
@@ -760,7 +771,7 @@ function coachingSummaryTable(rows) {
     { key: "metric", label: "Metric" },
     { key: "window", label: "W", format: (v) => fmt(v, 0) },
     { key: "n_events", label: "N", format: (v) => fmt(v, 0) },
-    { key: "pooled_did", label: "DiD", format: (v) => fmt(v, 2, true) },
+    { key: "pooled_did", label: "DiD", format: (v) => signedCell(v, 2) },
     { key: "event_ci_low", label: "CI low", format: (v) => fmt(v, 2, true) },
     { key: "event_ci_high", label: "CI high", format: (v) => fmt(v, 2, true) },
   ]);
@@ -772,7 +783,7 @@ function coachingDetailTable(rows) {
     { key: "team_abbr", label: "Team" },
     { key: "coach_out", label: "Coach out" },
     { key: "window", label: "W", format: (v) => fmt(v, 0) },
-    { key: "did", label: "DiD", format: (v) => fmt(v, 2, true) },
+    { key: "did", label: "DiD", format: (v) => signedCell(v, 2) },
   ]);
 }
 
