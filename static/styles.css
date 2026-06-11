@@ -1,17 +1,17 @@
 @font-face {
-  font-family: "Instrument Serif";
+  font-family: "Fraunces";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 400 700;
   font-display: swap;
-  src: url("assets/fonts/instrument-serif-latin.woff2") format("woff2");
+  src: url("assets/fonts/fraunces-latin.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "Instrument Serif";
+  font-family: "Fraunces";
   font-style: italic;
-  font-weight: 400;
+  font-weight: 400 700;
   font-display: swap;
-  src: url("assets/fonts/instrument-serif-italic-latin.woff2") format("woff2");
+  src: url("assets/fonts/fraunces-italic-latin.woff2") format("woff2");
 }
 
 @font-face {
@@ -42,7 +42,7 @@
   --good: #53b186;
   --bad: #e05f2b;
   --font-body: "Libre Franklin", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-display: Fraunces, Georgia, "Times New Roman", serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -148,10 +148,10 @@ dl {
 h1 {
   margin-bottom: 12px;
   font-family: var(--font-display);
-  font-size: 2.7rem;
-  font-weight: 400;
-  line-height: 0.96;
-  letter-spacing: -0.01em;
+  font-size: 2.3rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.015em;
 }
 
 h1 em {
@@ -298,10 +298,10 @@ select:hover {
 .chapter h2 {
   margin-bottom: 10px;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 3.6vw, 3rem);
-  font-weight: 400;
-  line-height: 1.02;
-  letter-spacing: -0.01em;
+  font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+  font-weight: 550;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
 }
 
 .standfirst {
@@ -417,8 +417,8 @@ h3 {
 .metric strong {
   display: block;
   font-family: var(--font-display);
-  font-size: clamp(1.9rem, 2.6vw, 2.6rem);
-  font-weight: 400;
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  font-weight: 500;
   line-height: 1;
   letter-spacing: -0.01em;
 }
@@ -761,8 +761,8 @@ figure {
 
 .panel-subtle h2 {
   font-family: var(--font-display);
-  font-size: 1.7rem;
-  font-weight: 400;
+  font-size: 1.55rem;
+  font-weight: 550;
   margin-bottom: 2px;
 }
 
