@@ -12,7 +12,7 @@
       name="keywords"
       content="NBA analytics, basketball analytics, shot quality, expected points, POE, RAPM, difference in differences, data science portfolio"
     />
-    <meta name="theme-color" content="#0a0c10" />
+    <meta name="theme-color" content="#f5f1e6" />
     <link rel="canonical" href="https://jahankazimi078.github.io/nba-shot-quality/" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="NBA Shot Quality" />
@@ -29,47 +29,83 @@
       content="Shot-quality adjusted scoring, shooter archetypes, RAPM impact, and coaching-change evidence from public NBA data."
     />
     <meta name="twitter:image" content="https://jahankazimi078.github.io/nba-shot-quality/assets/social-preview.png" />
-    <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="assets/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/instrument-serif-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="site-header">
-      <div class="header-text">
-        <p class="eyebrow">Basketball Analytics Portfolio</p>
-        <h1>NBA <span class="title-accent">Shot Quality</span></h1>
-        <p class="lede">
-          Shot-quality adjusted scoring, shooter archetypes, RAPM impact, and coaching-change evidence
-          from public NBA data.
-        </p>
-      </div>
-      <div class="header-actions" aria-label="Global controls">
-        <label>
+    <div class="layout">
+      <aside class="sidebar">
+        <header class="masthead">
+          <p class="folio">Basketball analytics &middot; 2022&ndash;25</p>
+          <h1>NBA <em>Shot&nbsp;Quality</em></h1>
+          <p class="lede">
+            Shot-quality adjusted scoring, shooter archetypes, RAPM impact, and coaching-change
+            evidence from public NBA data.
+          </p>
+        </header>
+
+        <label class="season-field">
           Season
           <select id="seasonSelect"></select>
         </label>
-        <a class="data-link" href="?view=data">Data exports</a>
-      </div>
-    </header>
 
-    <nav class="tabs" aria-label="Dashboard sections">
-      <button data-view="overview" aria-selected="true">Overview</button>
-      <button data-view="compare" aria-selected="false">Compare</button>
-      <button data-view="archetypes" aria-selected="false">Archetypes</button>
-      <button data-view="evidence" aria-selected="false">Evidence</button>
-      <button data-view="coaching" aria-selected="false">Coaching</button>
-      <button data-view="data" aria-selected="false">Data</button>
-    </nav>
+        <nav class="toc" aria-label="Report sections">
+          <button data-view="overview" aria-selected="true">
+            <span class="toc-num">01</span>
+            <span class="toc-body">
+              <span class="toc-title">Overview</span>
+              <span class="toc-desc">Who scored more than their shots deserved</span>
+            </span>
+          </button>
+          <button data-view="compare" aria-selected="false">
+            <span class="toc-num">02</span>
+            <span class="toc-body">
+              <span class="toc-title">Compare</span>
+              <span class="toc-desc">Two players, two shot diets, side by side</span>
+            </span>
+          </button>
+          <button data-view="archetypes" aria-selected="false">
+            <span class="toc-num">03</span>
+            <span class="toc-body">
+              <span class="toc-title">Archetypes</span>
+              <span class="toc-desc">Styles of getting shots up, not rankings</span>
+            </span>
+          </button>
+          <button data-view="evidence" aria-selected="false">
+            <span class="toc-num">04</span>
+            <span class="toc-body">
+              <span class="toc-title">Evidence</span>
+              <span class="toc-desc">Calibration, stability, and RAPM checks</span>
+            </span>
+          </button>
+          <button data-view="coaching" aria-selected="false">
+            <span class="toc-num">05</span>
+            <span class="toc-body">
+              <span class="toc-title">Coaching</span>
+              <span class="toc-desc">What actually changes after a firing</span>
+            </span>
+          </button>
+          <button data-view="data" aria-selected="false">
+            <span class="toc-num">06</span>
+            <span class="toc-body">
+              <span class="toc-title">Data</span>
+              <span class="toc-desc">Every CSV behind this report</span>
+            </span>
+          </button>
+        </nav>
 
-    <main id="app" class="app-shell" tabindex="-1">
-      <section class="loading">Preparing the dashboard data&hellip;</section>
-    </main>
+        <div class="colophon">
+          <span>Compiled from public NBA play-by-play and shot-location data.</span>
+          <span>Start with POE/100, then read shot mix and archetype for the how.</span>
+        </div>
+      </aside>
 
-    <footer class="site-footer">
-      <span>Player scoring, shot diet, model evidence, and coaching-change analysis in one dashboard.</span>
-      <span>Tip: start with POE/100, then use shot mix and archetype to understand how the player gets there.</span>
-    </footer>
+      <main id="app" class="app-shell" tabindex="-1">
+        <section class="loading">Preparing the report data&hellip;</section>
+      </main>
+    </div>
 
     <script src="app.js"></script>
   </body>

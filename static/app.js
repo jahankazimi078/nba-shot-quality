@@ -43,23 +43,23 @@ const zoneFields = [
   ["above_break_3_share", "Above break 3"],
 ];
 const colors = {
-  primary: "#ff6b35",
-  comparison: "#a78bfa",
-  warm: "#ff5c5c",
-  gold: "#ffc960",
-  good: "#3ddc97",
-  bad: "#ff5c5c",
-  neutral: "#7a8494",
-  line: "#232936",
-  ink: "#edeff4",
-  muted: "#9aa3b2",
-  court: "#3a4150",
-  bg: "#0a0c10",
+  primary: "#1b1812",
+  comparison: "#56549c",
+  warm: "#b2360f",
+  gold: "#a87f2c",
+  good: "#1d6b48",
+  bad: "#b2360f",
+  neutral: "#a39a83",
+  line: "#d5cdb8",
+  ink: "#1b1812",
+  muted: "#6c6452",
+  court: "#1b1812",
+  bg: "#f5f1e6",
 };
 
 const app = document.querySelector("#app");
 const seasonSelect = document.querySelector("#seasonSelect");
-const tabButtons = Array.from(document.querySelectorAll(".tabs button"));
+const tabButtons = Array.from(document.querySelectorAll(".toc button"));
 
 function applyUrlState() {
   const params = new URLSearchParams(window.location.search);
@@ -228,44 +228,39 @@ function explainCard(title, text) {
   return `<article class="explain-card"><h3>${title}</h3><p>${text}</p></article>`;
 }
 
+function chapterHead(num, title, standfirst, controls = "") {
+  return `
+    <header class="chapter">
+      <p class="kicker">Section ${num}</p>
+      <h2>${title}</h2>
+      <p class="standfirst">${standfirst}</p>
+      ${controls ? `<div class="chapter-controls">${controls}</div>` : ""}
+    </header>
+  `;
+}
+
+function glossItem(term, text) {
+  return `<details><summary>${term}</summary><p>${text}</p></details>`;
+}
+
 function metricGuide() {
   return `
     <section class="panel">
       <div class="section-head">
         <div>
           <h2>How to read the metrics</h2>
-          <p>These definitions are written for basketball readers first. Higher is usually better unless the card says otherwise.</p>
+          <p>Definitions written for basketball readers first. Higher is usually better unless the entry says otherwise.</p>
         </div>
       </div>
-      <div class="explain-grid">
-        ${explainCard("xPoints", "The number of points an average NBA shooter would be expected to score from the same shot. A corner three, a layup, and a contested-looking long two do not start from the same baseline.")}
-        ${explainCard("POE", "Points over expected. This is actual field-goal points minus xPoints. Positive POE means the player scored more than expected from the shots he took.")}
-        ${explainCard("POE / 100", "POE scaled to 100 shot attempts. This makes high-volume stars and lower-volume specialists easier to compare on the same scale.")}
-        ${explainCard("PPS and xPPS", "PPS is actual points per shot. xPPS is expected points per shot. If PPS is above xPPS, the player beat the model's expectation.")}
-        ${explainCard("TS% and rTS%", "True Shooting % includes free throws and threes. rTS% is how far a player was above or below league-average TS%. It is useful context, but it is not the same shot universe as POE.")}
-        ${explainCard("Shot archetype", "A style group based only on where and how far a player shoots. It is not a ranking. Use it to compare players with similar shot diets.")}
-        ${explainCard("RAPM", "Regularized adjusted plus-minus for shot quality. It estimates how team or opponent shot quality changed when a player was on the floor, while sharing credit with teammates.")}
-        ${explainCard("Coaching DiD", "Difference-in-differences compares a team's before/after change to the rest of the league over the same calendar window. Negative defensive values mean the team allowed less after the change.")}
-      </div>
-    </section>
-  `;
-}
-
-function answersBlock() {
-  return `
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h2>What this app answers</h2>
-          <p>Start here if you have 90 seconds. Each tab is built around one reviewer or analyst question.</p>
-        </div>
-      </div>
-      <div class="explain-grid answers-grid">
-        ${explainCard("Shooter skill", "Who scored more than expected after accounting for shot value and location? Use POE/100 as the first leaderboard read.")}
-        ${explainCard("Shot diet", "How does a player get those shots? Compare rim, paint, midrange, corner three, and above-break three shares.")}
-        ${explainCard("Player comparison", "Which two players create similar value in different ways? The Compare tab pairs outcome cards with shot maps and shot mix.")}
-        ${explainCard("Model evidence", "Do the metrics behave like signal? Evidence shows calibration, POE stability, POE vs rTS%, and RAPM diagnostics.")}
-        ${explainCard("Coaching study", "What changed after in-season firings? The DiD view separates directional results from claims the sample cannot support.")}
+      <div class="gloss">
+        ${glossItem("xPoints", "The number of points an average NBA shooter would be expected to score from the same shot. A corner three, a layup, and a contested-looking long two do not start from the same baseline.")}
+        ${glossItem("POE", "Points over expected. This is actual field-goal points minus xPoints. Positive POE means the player scored more than expected from the shots he took.")}
+        ${glossItem("POE / 100", "POE scaled to 100 shot attempts. This makes high-volume stars and lower-volume specialists easier to compare on the same scale.")}
+        ${glossItem("PPS and xPPS", "PPS is actual points per shot. xPPS is expected points per shot. If PPS is above xPPS, the player beat the model's expectation.")}
+        ${glossItem("TS% and rTS%", "True Shooting % includes free throws and threes. rTS% is how far a player was above or below league-average TS%. It is useful context, but it is not the same shot universe as POE.")}
+        ${glossItem("Shot archetype", "A style group based only on where and how far a player shoots. It is not a ranking. Use it to compare players with similar shot diets.")}
+        ${glossItem("RAPM", "Regularized adjusted plus-minus for shot quality. It estimates how team or opponent shot quality changed when a player was on the floor, while sharing credit with teammates.")}
+        ${glossItem("Coaching DiD", "Difference-in-differences compares a team's before/after change to the rest of the league over the same calendar window. Negative defensive values mean the team allowed less after the change.")}
       </div>
     </section>
   `;
@@ -466,7 +461,7 @@ function shotMix(container, row) {
         width: barW,
         height: barH,
         rx: 5,
-        fill: [colors.primary, "#2dd4bf", colors.gold, colors.warm, colors.comparison][index],
+        fill: [colors.primary, "#1d6b48", colors.gold, colors.warm, colors.comparison][index],
       }),
     );
     svg.appendChild(svgEl("text", { x: x + barW / 2, y: height - 20, "text-anchor": "middle", "font-size": 11, fill: colors.muted }))
@@ -484,19 +479,22 @@ function overview() {
   const top = byPoe(qualified)[0];
   const bottom = byPoe(qualified, false)[0];
   app.innerHTML = `
-    ${answersBlock()}
+    ${chapterHead(
+      "01",
+      "Who beats the shots they take?",
+      `Points over expected &mdash; POE &mdash; credits a shooter only for scoring above what an average NBA player would manage from the same shot locations and values. The ${state.season} season at a glance, then the leaders, then how to read each number.`,
+    )}
     <section class="metric-strip">
       ${metric("Shots", fmt(summary.shots, 0), "field-goal attempts")}
       ${metric("Qualified players", fmt(summary.qualified_players_400_fga, 0), "400+ FGA")}
       ${metric("Best POE / 100", signedCell(top.poe_per_100, 1), top.player_name)}
       ${metric("Lowest POE / 100", signedCell(bottom.poe_per_100, 1), bottom.player_name)}
     </section>
-    ${metricGuide()}
     <section class="panel">
       <div class="section-head">
         <div>
           <h2>Shot-quality adjusted scoring leaders</h2>
-          <p>POE rewards made-shot value above expected points. Read this as: who scored more than an average NBA shooter would have from the same shot locations and shot values.</p>
+          <p>Read this as: who scored more than an average NBA shooter would have from the same shot locations and shot values.</p>
         </div>
         <div class="legend"><span>Positive POE</span><span class="bad">Negative POE</span><span class="neutral">Near expected</span></div>
       </div>
@@ -513,6 +511,7 @@ function overview() {
         <div id="overviewScatter" class="chart"></div>
       </div>
     </section>
+    ${metricGuide()}
   `;
   barChart(document.querySelector("#topBars"), byPoe(qualified).slice(0, 14), {
     title: "Top POE per 100 players",
@@ -536,7 +535,10 @@ function leaderboardTable(rows) {
 function compare() {
   const rows = playerRows().filter((row) => row.attempts >= 200).sort((a, b) => a.player_name.localeCompare(b.player_name));
   if (!rows.length) {
-    app.innerHTML = `<section class="panel"><h2>Compare two players</h2><div class="empty-state">No qualified players are available for ${state.season}.</div></section>`;
+    app.innerHTML = `
+      ${chapterHead("02", "Same value, different routes.", "Two players, two shot diets, side by side.")}
+      <section class="panel"><div class="empty-state">No qualified players are available for ${state.season}.</div></section>
+    `;
     return;
   }
   if (!state.playerA || !rows.some((row) => row.player_name === state.playerA)) state.playerA = rows[0]?.player_name || "";
@@ -545,17 +547,14 @@ function compare() {
   const a = rows.find((row) => row.player_name === state.playerA);
   const b = rows.find((row) => row.player_name === state.playerB);
   app.innerHTML = `
-    <section class="panel">
-      <div class="section-head">
-        <div>
-          <h2>Compare two players</h2>
-          <p>Use this view to separate shot-making from shot selection. The cards show outcomes; the bars and maps show the kind of shots behind those outcomes.</p>
-        </div>
-      </div>
-      <div class="control-row">
-        <label>Player A<select id="playerA">${options}</select></label>
-        <label>Player B<select id="playerB">${options}</select></label>
-      </div>
+    ${chapterHead(
+      "02",
+      "Same value, different routes.",
+      "Use this view to separate shot-making from shot selection. The stat lines show outcomes; the shot mix and maps show the kind of shots behind those outcomes.",
+      `<label>Player A<select id="playerA">${options}</select></label>
+       <label>Player B<select id="playerB">${options}</select></label>`,
+    )}
+    <section>
       <div id="compareStatus" class="note">Preparing the representative shot-map sample for ${state.season}.</div>
       <div class="grid-two">
         ${playerPanel(a, "A")}
@@ -620,20 +619,21 @@ function archetypes() {
   if (!names.includes(state.archetype)) state.archetype = "All";
   const filtered = state.archetype === "All" ? rows : rows.filter((row) => row.archetype === state.archetype);
   app.innerHTML = `
+    ${chapterHead(
+      "03",
+      "How players get their shots up.",
+      "Archetypes group players by shot style, not by quality. A rim-pressure player and a perimeter spacer can both be excellent &mdash; they create value in different ways.",
+      `<label>Archetype<select id="archetypeSelect">${names.map((name) => `<option value="${name}">${name}</option>`).join("")}</select></label>`,
+    )}
     <section class="panel">
-      <div class="section-head">
-        <div>
-          <h2>Shot diet archetypes</h2>
-          <p>Archetypes group players by shot style, not by quality. A rim-pressure player and a perimeter spacer can both be excellent, but they create value in different ways.</p>
-        </div>
-        <label>Archetype<select id="archetypeSelect">${names.map((name) => `<option value="${name}">${name}</option>`).join("")}</select></label>
-      </div>
+      <h2>The four shot diets</h2>
       <div class="explain-grid compact">
         ${explainCard("Perimeter Spacers", "Players whose shot diet leans heavily toward threes, especially above-the-break attempts.")}
         ${explainCard("Rim Pressure", "Players who create a large share of attempts at the basket, where expected points are usually high.")}
         ${explainCard("Midrange Creators", "Players who take more self-created or in-between shots. These can be valuable when the player consistently beats expectation.")}
         ${explainCard("Balanced Shot Diet", "Players without one dominant zone. Their value is easier to judge by pairing POE with the full shot mix.")}
       </div>
+      <p class="note">Each dot is a player season. Left-to-right shows average shot distance; bottom-to-top shows three-point attempt rate.</p>
       <div id="archetypeScatter" class="chart"></div>
     </section>
     <section class="grid-two">
@@ -675,13 +675,13 @@ function evidence() {
   }, {});
   const rapm = [...data.rapm_pooled].sort((a, b) => b.net_rapm - a.net_rapm);
   app.innerHTML = `
+    ${chapterHead(
+      "04",
+      "Can you trust these numbers?",
+      "Calibration checks whether expected points line up with reality. Stability checks whether the metric persists year to year. RAPM checks whether on-floor impact agrees with independent signals.",
+    )}
     <section class="panel">
-      <div class="section-head">
-        <div>
-          <h2>Model evidence</h2>
-          <p>These figures answer whether the numbers are trustworthy. Calibration checks whether expected points line up with reality; stability checks whether the metric persists year to year; RAPM checks whether on-floor impact agrees with independent signals.</p>
-        </div>
-      </div>
+      <h2>How to read the checks</h2>
       <div class="explain-grid compact">
         ${explainCard("Calibration", "If the model says a group of shots should score about 1.05 points each, the actual average should be close to 1.05. Good calibration makes POE fairer.")}
         ${explainCard("Stability", "A noisy metric disappears from one year to the next. A useful skill metric should show some year-to-year persistence.")}
@@ -731,13 +731,13 @@ function coaching() {
   const summary = data.coaching_did_summary;
   const detail = data.coaching_did_results.filter((row) => row.metric === "xpts_100poss");
   app.innerHTML = `
+    ${chapterHead(
+      "05",
+      "Does firing the coach fix the defense?",
+      "Difference-in-differences asks whether a team allowed fewer points or easier shots after a coaching change, compared with the rest of the league over the same dates. Negative estimates mean the defense improved relative to league drift.",
+    )}
     <section class="panel">
-      <div class="section-head">
-        <div>
-          <h2>Coaching-change difference-in-differences</h2>
-          <p>This asks whether a team allowed fewer points or easier shots after a coaching change, compared with the rest of the league over the same dates. Negative estimates mean the defense improved relative to league drift.</p>
-        </div>
-      </div>
+      <h2>Reading the study</h2>
       <div class="explain-grid compact">
         ${explainCard("Treated team", "The team that changed coaches during the season.")}
         ${explainCard("Control teams", "Teams in the same season that did not make an in-season coaching change.")}
@@ -805,13 +805,13 @@ function dataView() {
     .sort((a, b) => a.file.localeCompare(b.file));
   const grouped = groupOrder.map((category) => [category, files.filter((row) => row.category === category)]);
   app.innerHTML = `
+    ${chapterHead(
+      "06",
+      "The paper trail.",
+      "Every CSV used by this report is listed below. Full shot exports are large audit files; the report renders sampled shot-map files so browser interactions stay readable.",
+    )}
     <section class="panel">
-      <div class="section-head">
-        <div>
-          <h2>Data exports</h2>
-          <p>Every CSV used by the app is listed below. Full shot exports are large audit files; the dashboard renders sampled shot-map files so browser interactions stay readable.</p>
-        </div>
-      </div>
+      <h2>What each group is for</h2>
       <div class="explain-grid compact">
         ${explainCard("Player analysis", "Use player profiles, leaderboards, season summaries, and archetype summaries for player-level review.")}
         ${explainCard("Shot-level analysis", "Use full shots files for audits and sampled shot-map files for browser-friendly visualization.")}
