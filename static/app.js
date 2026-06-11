@@ -43,18 +43,18 @@ const zoneFields = [
   ["above_break_3_share", "Above break 3"],
 ];
 const colors = {
-  primary: "#1b1812",
-  comparison: "#56549c",
-  warm: "#b2360f",
-  gold: "#a87f2c",
-  good: "#1d6b48",
-  bad: "#b2360f",
-  neutral: "#a39a83",
-  line: "#d5cdb8",
-  ink: "#1b1812",
-  muted: "#6c6452",
-  court: "#1b1812",
-  bg: "#f5f1e6",
+  primary: "#e9e4d4",
+  comparison: "#8d89c5",
+  warm: "#e05f2b",
+  gold: "#c79a3e",
+  good: "#53b186",
+  bad: "#e05f2b",
+  neutral: "#6e6650",
+  line: "#383323",
+  ink: "#e9e4d4",
+  muted: "#a59c85",
+  court: "#e9e4d4",
+  bg: "#15130e",
 };
 
 const app = document.querySelector("#app");
@@ -461,7 +461,7 @@ function shotMix(container, row) {
         width: barW,
         height: barH,
         rx: 5,
-        fill: [colors.primary, "#1d6b48", colors.gold, colors.warm, colors.comparison][index],
+        fill: [colors.primary, "#53b186", colors.gold, colors.warm, colors.comparison][index],
       }),
     );
     svg.appendChild(svgEl("text", { x: x + barW / 2, y: height - 20, "text-anchor": "middle", "font-size": 11, fill: colors.muted }))

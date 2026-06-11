@@ -15,11 +15,11 @@
 }
 
 @font-face {
-  font-family: "Archivo";
+  font-family: "Libre Franklin";
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url("assets/fonts/archivo-latin.woff2") format("woff2");
+  src: url("assets/fonts/libre-franklin-latin.woff2") format("woff2");
 }
 
 @font-face {
@@ -31,17 +31,17 @@
 }
 
 :root {
-  color-scheme: light;
-  --paper: #f5f1e6;
-  --paper-2: #ece6d6;
-  --ink: #1b1812;
-  --muted: #6c6452;
-  --faint: #a39a83;
-  --line: #d5cdb8;
-  --accent: #b2360f;
-  --good: #1d6b48;
-  --bad: #b2360f;
-  --font-body: Archivo, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  --paper: #15130e;
+  --paper-2: #1e1b14;
+  --ink: #e9e4d4;
+  --muted: #a59c85;
+  --faint: #6e6650;
+  --line: #383323;
+  --accent: #e05f2b;
+  --good: #53b186;
+  --bad: #e05f2b;
+  --font-body: "Libre Franklin", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -192,7 +192,7 @@ input {
   font-size: 0.9rem;
   letter-spacing: normal;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1l3.5 4L8 1' fill='none' stroke='%231b1812' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'%3E%3Cpath d='M1 1l3.5 4L8 1' fill='none' stroke='%23e9e4d4' stroke-width='1.4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   cursor: pointer;
