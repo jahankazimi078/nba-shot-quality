@@ -1,52 +1,35 @@
-# NBA Shot Quality Portfolio Brief
+# NBA Shot Quality: one-page summary
 
-## Problem
+**Site:** <https://jahankazimi078.github.io/nba-shot-quality/> · **Full write-up:** [case_study.md](case_study.md)
 
-Raw shooting efficiency mixes shot-making skill with shot difficulty. A player who makes difficult
-pull-ups and a player who finishes open rim attempts can both look efficient, but they answer
-different scouting questions. This project estimates expected points for each field-goal attempt,
-then turns the residual into player-level shot-making, shot-diet profiles, and model evidence.
+## The problem
 
-Live app: <https://jahankazimi078.github.io/nba-shot-quality/>
+Shooting efficiency mixes two things: how good a player's shots are, and how well they make them. A guard
+hitting tough pull-ups and a center finishing lobs can have the same percentages for very different
+reasons. I wanted to separate them.
 
-## Methods
+## What I built
 
-- Built an xPoints model from public NBA shot detail: distance, angle, zone, action type, period,
-  clock, and shot value.
-- Used game-grouped validation and out-of-fold scoring to reduce leakage into player residuals.
-- Aggregated POE, or points over expected, to player seasons with bootstrap confidence intervals.
-- Added player shot-diet archetypes from shot-profile features only, keeping style separate from
-  performance.
-- Added RAPM diagnostics for on-floor shot-quality impact and a coaching-change
-  difference-in-differences study with event-clustered intervals.
-- Published a static GitHub Pages dashboard backed by committed CSV exports.
+- An expected-points model (LightGBM) that prices all 654,609 NBA shots from 2022–23 through 2024–25, with
+  game-grouped validation and out-of-fold scoring so no player's own games leak into their baseline.
+- **Points over expected (POE)** for 983 player-seasons, with bootstrap confidence intervals.
+- Shot-diet groups (k-means on shot location only), so players get compared to others with a similar
+  style.
+- A RAPM model built on lineups I reconstructed from play-by-play data, to estimate each player's effect
+  on shot quality at both ends.
+- A difference-in-differences study of whether firing a coach mid-season improves the defense.
+- A static website that shows all of it, backed by downloadable CSVs.
 
-## Headline Findings
+## What I found
 
-- POE/100 is meaningfully stable year to year: 2023-24 to 2024-25 qualified-player correlation is
-  **r = 0.58**.
-- POE and relative TS% agree but are not redundant: 2024-25 correlation is **r = 0.66**.
-- 2024-25 POE/100 leaders include Ty Jerome, Nikola Jokic, and Payton Pritchard among players with
-  at least 200 attempts.
-- Coaching-change estimates are directionally favorable for actual defensive rating, but intervals
-  cross zero. The study is useful as an uncertainty-aware causal design, not as a definitive claim.
+- POE is mostly skill: r = 0.58 from one season to the next.
+- It agrees with relative true shooting (r = 0.66) but adds information where shot difficulty differs.
+- Offensive RAPM independently lines up with POE (r ≈ 0.7). Defensive RAPM is much noisier, and I
+  documented why instead of tuning it until it looked better.
+- After coach firings, points allowed dropped about 2.5 per 100 possessions but shot quality allowed didn't
+  change. With 7 events the intervals all cross zero, so it's a lean, not a claim.
 
-## Technical Stack
+## Tools
 
-Python 3.11, pandas, scikit-learn, LightGBM, ridge regression, bootstrap intervals, public NBA data,
-static HTML/CSS/JavaScript, CSV data package, GitHub Actions, and GitHub Pages.
-
-## Resume Bullets
-
-- Built an end-to-end NBA xPoints pipeline with grouped validation, out-of-fold scoring, and a
-  static scouting dashboard deployed through GitHub Pages.
-- Designed POE, a shot-quality-adjusted shooter metric with bootstrap intervals and year-over-year
-  stability validation across three NBA seasons.
-- Added player archetype clustering, RAPM impact diagnostics, and a coaching-change DiD case study
-  to demonstrate metric design, model validation, dashboarding, and causal-analysis judgment.
-
-## Reviewer Takeaway
-
-This is not just a leaderboard. The portfolio package shows the full analytics workflow: data
-ingestion, feature design, model validation, uncertainty communication, user-facing dashboard design,
-and reproducible CSV exports that can be audited outside the app.
+Python, pandas, scikit-learn, LightGBM, NumPy/SciPy (ridge regression, bootstrap), the public NBA stats
+API, plain HTML/CSS/JavaScript, GitHub Actions, and GitHub Pages.

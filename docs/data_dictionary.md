@@ -1,7 +1,6 @@
 # Metric Glossary And Data Dictionary
 
-This dictionary covers the CSV exports in `static/data/` and the dashboard labels a reviewer is
-most likely to inspect.
+This covers the CSV files in `static/data/` and the labels you'll see on the site.
 
 ## Metric Glossary
 

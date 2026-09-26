@@ -264,24 +264,24 @@ def _clear_generated_static_files(data_dir: Path, reports_dir: Path) -> None:
 def _csv_description(path: Path) -> str:
     name = path.name
     if name.startswith("shots_"):
-        return "Full per-shot xPoints and POE export for one season."
+        return "Every shot in the season with its location, result, xPoints, and POE."
     if name.startswith("shot_map_sample_"):
-        return "Deterministic per-player shot sample used by browser shot maps."
+        return "A fixed per-player sample of shots, used for the shot charts."
     if name.startswith("leaderboard"):
-        return "POE leaderboard with points, xPoints, confidence intervals, TS%, and rTS%."
+        return "Player-season POE with intervals, TS%, and rTS%."
     if name.startswith("player_profiles"):
-        return "Player profile metrics, shot-zone shares, and shot-diet archetypes."
+        return "Everything on the player views: POE, shot-zone shares, and shot diet group."
     if name == "season_summary.csv":
-        return "Season-level totals and headline POE leaders."
+        return "Season totals and the top and bottom shot-makers."
     if name == "archetype_summary.csv":
-        return "Per-season archetype aggregates."
+        return "Averages for each shot-diet group."
     if name.startswith("rapm"):
-        return "Pooled RAPM shot-quality impact ratings."
+        return "Offensive, defensive, and net RAPM with intervals, pooled 2022-25."
     if name.startswith("coaching"):
-        return "Coaching-change difference-in-differences estimates."
+        return "Difference-in-differences estimates for mid-season coach firings."
     if name == "model_evidence.csv":
-        return "Report image index bundled with the dashboard."
-    return "Dashboard data export."
+        return "Index of the validation figures."
+    return "Data used by the dashboard."
 
 
 def _build_season_summary(profiles: pd.DataFrame, shots: pd.DataFrame) -> pd.DataFrame:

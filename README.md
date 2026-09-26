@@ -1,189 +1,112 @@
 # NBA Shot Quality
 
-NBA Shot Quality is a hybrid data science and basketball analytics portfolio project. It estimates
-the expected points of every NBA field-goal attempt, turns those predictions into player-level
-shot-making skill, and layers on a browser dashboard for scouting-style comparison.
+**[Open the site →](https://jahankazimi078.github.io/nba-shot-quality/)**
 
-The dashboard is designed for basketball readers: every view includes plain-English definitions for
-the core metrics, what the chart is comparing, and how to interpret positive or negative values.
+Field-goal percentage treats every shot the same, and they aren't. A wide-open layup and a contested
+fadeaway both count as one attempt, so a player's efficiency ends up mixing two things: how good their
+shots are, and how well they make them.
 
-**Live app:** [NBA Shot Quality on GitHub Pages](https://jahankazimi078.github.io/nba-shot-quality/)
+This project pulls those apart. I trained a model on every NBA regular-season shot from 2022–23 through
+2024–25 (654,609 of them) to estimate how many points an average player would score from each one. Whatever
+a player scores above that is shot-making, which I call **points over expected (POE)**.
 
-**Hiring brief:** [docs/portfolio_brief.md](docs/portfolio_brief.md)
+From there I kept pulling on the thread:
 
-## Start Here
+- **Is it real?** POE per 100 shots has a 0.58 correlation from one season to the next, so it's mostly
+  skill rather than a hot streak.
+- **What kind of shooter is this?** Players are grouped by *where* they shoot from, so you can compare a
+  spacer to other spacers instead of to centers.
+- **Does it depend on teammates?** I rebuilt every lineup from play-by-play data and fit a RAPM model to
+  estimate each player's effect on shot quality at both ends.
+- **Does firing the coach help the defense?** A difference-in-differences study of the 7 mid-season firings
+  in those three seasons.
 
-For a 90-second review:
+![Overview](static/assets/screenshots/overview.png)
 
-1. Open the [live app](https://jahankazimi078.github.io/nba-shot-quality/) and stay on `Overview`.
-2. Scan `What this app answers`, then note that POE/100 adjusts shot-making for expected shot value.
-3. Open `Compare` and put a star next to a specialist to see how shot diet changes the interpretation.
-4. Open `Evidence` and check calibration, POE stability, POE vs rTS%, and RAPM diagnostics.
-5. Open `Coaching` for the uncertainty-aware DiD read: directional defensive improvement, not a
-   causal victory lap.
-6. Open `Data` if you want the CSV package behind each dashboard view.
+## What I found
 
-## What It Shows
+- **Shot-making repeats.** POE/100 correlates at r = 0.58 year to year among qualified players. It also
+  tracks relative true shooting (r = 0.66) without duplicating it, and the gaps between the two are where
+  shot difficulty matters.
+- **The 2024–25 leaders** (200+ attempts) were Ty Jerome (+23.6 per 100 shots), Nikola Jokić (+22.2), and
+  Payton Pritchard (+21.1).
+- **Offensive RAPM agrees with POE** (r ≈ 0.7) even though it comes from a separate lineup model. Defensive
+  RAPM is much noisier (r ≈ 0.12 year to year). It only sees shot attempts and has to split credit five ways,
+  so I pool it across all three seasons and treat it as rough. The top of the list is still the rim
+  protectors you'd expect.
+- **Firing the coach:** points allowed fell about 2.5 per 100 possessions relative to other teams, but the
+  quality of shots allowed barely moved, and with only 7 events every interval crosses zero. I'd call it a
+  lean, not a result.
 
-- **xPoints model:** LightGBM make-probability model converted to expected points per shot.
-- **POE shooter skill:** player-season points over expected with bootstrap confidence intervals.
-- **Player profiles and archetypes:** shot-zone shares, 3PA rate, rim rate, average distance, POE,
-  TS%, and rTS%, with deterministic KMeans shot-diet archetypes.
-- **RAPM impact:** ridge on/off shot-quality model for offensive, defensive, and net shot impact.
-- **Coaching DiD study:** mid-season coaching changes analyzed with calendar-aligned
-  difference-in-differences windows.
+## How it works
 
-## Headline Findings
+1. Pull shot-level data from the public NBA stats API and cache it as Parquet.
+2. Build shot features: distance, angle, zone, action type, period, game clock, and shot value.
+3. Train a LightGBM make/miss classifier with folds grouped by game, so shots from one game never appear in
+   both training and validation. Expected points = make probability × shot value. Held-out Brier score is
+   0.225 (a constant guess gets 0.248), and every shot zone is calibrated within about 1.5 percentage points.
+4. Score every shot out of fold, so a player's own hot night never leaks into their baseline.
+5. Sum up to player-seasons, with 1,000-sample bootstrap intervals.
+6. Cluster players into shot diets with k-means, using location features only (never performance).
+7. Rebuild on-court lineups from play-by-play substitutions and fit ridge RAPM. About 96% of shots
+   reconstruct to a clean 5-on-5, and those match the NBA's own rotation data 99% of the time.
+8. Run the coaching study as calendar-aligned difference-in-differences with bootstrap intervals clustered
+   by event.
 
-- POE behaves like a repeatable skill: the 2023-24 to 2024-25 qualified-player correlation is
-  **r = 0.58**.
-- POE and relative TS% agree but are not redundant: 2024-25 POE vs rTS% correlation is **r = 0.66**,
-  leaving useful differences where shot difficulty matters.
-- 2024-25 leaders by POE/100 include Ty Jerome (**+23.6**), Nikola Jokic (**+22.2**), and Payton
-  Pritchard (**+21.1**) among players with at least 200 attempts.
-- The coaching-change study finds directionally better actual defensive rating after firings, but
-  event-clustered intervals span zero. The honest read is "uncertain and sample-limited," not a
-  causal victory lap.
+The longer write-up is in [docs/case_study.md](docs/case_study.md), and every column is defined in
+[docs/data_dictionary.md](docs/data_dictionary.md).
 
-## App
-
-Public app: <https://jahankazimi078.github.io/nba-shot-quality/>
-
-Local preview:
+## Running it
 
 ```bash
-make setup
-make app-artifacts
-make app
+make setup            # venv + editable install
+make app-artifacts    # rebuild the CSVs the site reads
+make app              # serve static/ at http://localhost:8000
+make test             # ruff + pytest
 ```
 
-Then open `http://localhost:8000`.
-
-The app has six tabs:
-
-- `Overview`: season-level summary, key findings, and top POE players.
-- `Compare`: side-by-side player metrics, shot mix bars, POE/rTS comparison, and shot maps.
-- `Archetypes`: shot-diet clusters, archetype leaderboard, and top/bottom POE within each group.
-- `Evidence`: calibration, POE stability, RAPM validation plots, and RAPM leaderboards.
-- `Coaching`: DiD summary, event-study plot, and per-event estimates.
-- `Data`: direct CSV links for every export.
-
-## Dashboard Screenshots
-
-![Overview dashboard screenshot](static/assets/screenshots/overview.png)
-
-![Compare dashboard screenshot](static/assets/screenshots/compare.png)
-
-![Evidence dashboard screenshot](static/assets/screenshots/evidence.png)
-
-## Method
-
-1. Ingest regular-season shot detail from public NBA endpoints.
-2. Engineer shot context: distance, angle, zone, action type, period, clock, and shot value.
-3. Train a LightGBM classifier to predict make probability, grouped by game for validation.
-4. Convert make probability to xPoints, then score out-of-fold shots to avoid in-sample inflation.
-5. Aggregate POE to player seasons with bootstrap intervals and external TS%/rTS% references.
-6. Build player profiles from shot diet only, then cluster those profiles with deterministic KMeans.
-7. Fit RAPM on shot-quality outcomes and run validation plots against POE, stability, and tracking.
-8. Analyze coaching changes with event-window DiD and event-clustered bootstrap intervals.
-
-See [docs/case_study.md](docs/case_study.md) for the methodology narrative and limitations, and
-[docs/data_dictionary.md](docs/data_dictionary.md) for metric definitions and exported-column
-documentation.
-
-## Reproduce The Pipeline
+Each pipeline stage is its own CLI command, so you can re-run one without the rest:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-```
-
-Run xPoints for one season:
-
-```bash
+# expected-points model
 .venv/bin/python -m nba_shot_quality.cli ingest   --season 2024-25
 .venv/bin/python -m nba_shot_quality.cli features --season 2024-25
 .venv/bin/python -m nba_shot_quality.cli train    --season 2024-25
 .venv/bin/python -m nba_shot_quality.cli eval     --season 2024-25
-```
 
-Run the shooter-skill pipeline:
-
-```bash
+# shooter skill (POE)
 .venv/bin/python -m nba_shot_quality.cli ingest-stats --season 2024-25
 .venv/bin/python -m nba_shot_quality.cli score        --season 2024-25
 .venv/bin/python -m nba_shot_quality.cli poe          --season 2024-25
 .venv/bin/python -m nba_shot_quality.cli stability    --season-a 2023-24 --season-b 2024-25
-.venv/bin/python -m nba_shot_quality.cli poe-vs-rts   --season 2024-25
-```
 
-Run reusable scripts:
-
-```bash
+# or chain them
 bash scripts/run_xpoints.sh 2024-25
 bash scripts/run_poe.sh 2024-25 2023-24
-bash scripts/run_rapm.sh
+bash scripts/run_rapm.sh 2022-23 2023-24 2024-25
 .venv/bin/python -m nba_shot_quality.cli coaching-study
 ```
 
-Build deploy artifacts:
+The NBA API rate-limits hard, so ingest commands cache everything and skip anything already downloaded.
+Pass `--force` to re-pull.
 
-```bash
-.venv/bin/python -m nba_shot_quality.cli app-artifacts --seasons 2022-23 2023-24 2024-25
-```
+The site itself is plain HTML, CSS, and JavaScript in `static/`, deployed to GitHub Pages on every push to
+`main`.
 
-The generated CSV package includes complete per-season shot exports, player profiles, leaderboards,
-RAPM ratings, coaching-study tables, model-evidence image index, and smaller deterministic shot-map
-samples for browser rendering.
+## Layout
 
-Full `shots_YYYY-YY.csv` exports are intentionally large audit files. The browser dashboard uses
-`shot_map_sample_YYYY-YY.csv` files for shot maps so player comparison remains responsive.
-
-## Deploy
-
-GitHub Pages deploys the `static/` directory from `main` with
-[.github/workflows/pages.yml](.github/workflows/pages.yml). To validate a local deploy package:
-
-```bash
-make test
-node --check static/app.js
-python3 -m http.server 8000 -d static
-```
-
-## Validation
-
-```bash
-make test
-```
-
-`make test` runs Ruff and pytest. The test suite covers shot-zone derivation, POE aggregation math,
-player-profile generation, archetype determinism, coaching DiD helper calculations, and committed
-CSV schema smoke checks.
-
-## Project Structure
-
-- `src/nba_shot_quality/ingest/`: public NBA data ingestion and caching.
-- `src/nba_shot_quality/features/`: shot and lineup feature builders.
-- `src/nba_shot_quality/models/`: xPoints, POE, RAPM, and app artifact logic.
-- `src/nba_shot_quality/eval/`: calibration, POE stability, and RAPM diagnostics.
-- `src/nba_shot_quality/analysis/`: coaching-change DiD study.
-- Dashboard assets: app shell, CSV exports, and bundled report images.
-- `docs/`: case study, data dictionary, and portfolio hiring brief.
+- `src/nba_shot_quality/ingest/`: data pulls and caching
+- `src/nba_shot_quality/features/`: shot features and lineup reconstruction
+- `src/nba_shot_quality/models/`: xPoints, POE, and RAPM
+- `src/nba_shot_quality/eval/`: calibration, stability, and RAPM checks
+- `src/nba_shot_quality/analysis/`: the coaching study
+- `static/`: the website and its CSV data
+- `docs/`: write-up and data dictionary
 
 ## Limitations
 
-- The xPoints model uses public shot detail, not tracking features such as closest defender,
-  catch-and-shoot status, or touch time.
-- POE is field-goal only; TS% and rTS% include free throws and are shown as external references.
-- RAPM is shot-quality impact, not total player value.
-- The coaching study has only seven in-season firing events in the cached seasons, so uncertainty is
-  large and causal claims should stay modest.
-
-## Resume Bullets
-
-- Built an end-to-end NBA xPoints pipeline with grouped validation, out-of-fold scoring, and an
-  interactive scouting dashboard backed by public-data CSV exports.
-- Designed POE, a shot-quality-adjusted shooter metric with bootstrap intervals and year-over-year
-  stability validation across three NBA seasons.
-- Added player archetype clustering, RAPM impact diagnostics, and a coaching-change DiD case study
-  to show modeling, metric design, dashboarding, and causal-analysis judgment.
+- Public shot data has no tracking info (closest defender, touch time, catch-and-shoot), so the model can't
+  tell an open three from a contested one at the same spot.
+- POE covers field goals only. Free throws show up in TS% but not here.
+- RAPM measures effect on shot quality, not total value. Turnovers, rebounds, and fouls aren't in it.
+- Seven coaching changes is a small sample. The design is sound, but the answer is still uncertain.
